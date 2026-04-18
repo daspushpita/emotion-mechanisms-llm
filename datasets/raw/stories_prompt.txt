@@ -1,19 +1,37 @@
 Write {n_stories} different stories based on the following premise.
 
-
 Topic: {topic}
-The story should follow a character who is feeling {emotion}.
+Each story should follow a character who is feeling {emotion}.
 
-Format the stories like so:
+Format:
 
 [story 1]
+<story text>
+
 [story 2]
+<story text>
+
 [story 3]
-etc.
+<story text>
 
-The paragraphs should each be a fresh start, with no continuity. Try to make them diverse and not use the same turns of phrase. Across the different stories, use a mix of third-person narration and first-person narration.
+...
 
-IMPORTANT: You must NEVER use the word '{emotion}' or any direct synonyms of it in the stories. Instead, convey the emotion ONLY through:
+Output format requirements:
+
+- Output exactly {n_stories} stories.
+- Begin with [story 1] on its own line.
+- Continue sequentially until [story {n_stories}].
+- Put a blank line after each story label.
+- Do not include any text before [story 1].
+- Do not include any text after the final story.
+- Each story must be self-contained prose with no continuity between stories.
+
+Guidelines:
+
+- Keep each story grounded in the topic.
+- Vary phrasing and situations across stories.
+
+IMPORTANT: You must NEVER use the word '{emotion}' or any direct synonyms of it in any story. Instead, convey the emotion ONLY through:
 
 - The character's actions and behaviors
 - Physical sensations and body language
@@ -21,4 +39,4 @@ IMPORTANT: You must NEVER use the word '{emotion}' or any direct synonyms of it 
 - Thoughts and internal reactions
 - Situational context and environmental descriptions
 
-The emotion should be clearly conveyed to the reader through these indirect means, but never explicitly named.
+The emotion should be clearly conveyed through these indirect means, but never explicitly named. The emotional tone should remain consistent within each story.
