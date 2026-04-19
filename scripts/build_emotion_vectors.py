@@ -46,7 +46,8 @@ def main():
     emotions, neutral = load_and_group_dataset(emotional_dataset, neutral_dataset)
 
     #Load the model and the tokenizer
-    model, tokenizer, runtime = load_model_and_tokenizer(ANALYSIS_MODEL_7B)
+    model, tokenizer, runtime = load_model_and_tokenizer(model_name="hf", 
+                                analysis=True, analysis_model=ANALYSIS_MODEL_7B)
     
     #Set up the activation extractor
     layer_indices = list(range(0, len(model.model.layers), LAYER_SAMPLE_STRIDE))
@@ -57,6 +58,7 @@ def main():
 
     def _select_token(act, position: str):
         # act: (1, seq_len, hidden_dim) CPU tensor
+        act = act.float()
         return act[0, -1, :].numpy() if position == "last" else act[0].mean(dim=0).numpy()
 
     #Extract activations for emotional stories

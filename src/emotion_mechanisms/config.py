@@ -18,8 +18,8 @@ STORY_TEMPLATE_PATH   = RAW_DIR / "stories_prompt.txt"
 EMOTIONAL_TEMPLATE_PATH = RAW_DIR / "emotional_dialouge_prompt.txt"
 NEUTRAL_TEMPLATE_PATH = RAW_DIR / "neutral_dialouge_prompt.txt"
 
-EMOTIONAL_STORIES_DATASET = PROCESSED_DIR / "emotional_stories.jsonl"
-NEUTRAL_STORIES_DATASET = PROCESSED_DIR / "neutral_stories.jsonl"
+EMOTIONAL_STORIES_DATASET = PROCESSED_DIR / "emotional_stories_qwen32B_v1.jsonl"
+NEUTRAL_STORIES_DATASET = PROCESSED_DIR / "neutral_stories_qwen32B_v1.jsonl"
 ACTIVATIONS_PATH       = ACTIVATIONS_DIR / "activations.h5"
 
 # ---------------------------------------------------------------------------
