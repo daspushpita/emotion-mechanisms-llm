@@ -41,18 +41,22 @@ def load_and_group_dataset(emotional_dataset: Path, neutral_dataset: Path) -> tu
             neutral.append(row["generated_text"])
     return emotions, neutral
     
-def main():
+def main(max_stories: int | None = None):
     # Loading the dataset
     emotions, neutral = load_and_group_dataset(emotional_dataset, neutral_dataset)
 
+    if max_stories is not None:
+        emotions = {emo: stories[:max_stories] for emo, stories in emotions.items()}
+        neutral = neutral[:max_stories]
+
     #Load the model and the tokenizer
-    model, tokenizer, runtime = load_model_and_tokenizer(model_name="hf", 
+    model, tokenizer, runtime = load_model_and_tokenizer(model_name="hf",
                                 analysis=True, analysis_model=ANALYSIS_MODEL_7B)
-    
+
     #Set up the activation extractor
     layer_indices = list(range(0, len(model.model.layers), LAYER_SAMPLE_STRIDE))
     extractor = ActivationExtractor(model, layer_indices)
-    
+
     emotional_activations = {emo: [] for emo in EMOTIONS}
     neutral_activations = []
 
