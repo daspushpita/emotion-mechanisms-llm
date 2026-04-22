@@ -65,7 +65,6 @@ Characterise and surgically target the conflict-avoidance subspace:
 | Emotion geometry characterisation | PCA plot of valence-arousal structure in Qwen2.5-32B |
 | Tradeoff replication | Sycophancy–harshness curve reproduced on open model |
 | Surgical steering results | Tradeoff curves comparing targeted vs. broad suppression |
-| Short paper | Targeting NeurIPS 2026 SafeGenAI workshop or ICLR 2027 |
 
 All four possible outcomes of the core hypothesis (confirmed, partial, geometric-only, rejected) support publication.
 ---
