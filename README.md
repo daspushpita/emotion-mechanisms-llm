@@ -1,59 +1,70 @@
-# Surgical Emotion Steering: Resolving the Sycophancy–Harshness Tradeoff in Open LLMs
-
-> *Can we make language models more honest without making them rude? This project investigates whether the sycophancy–harshness tradeoff identified in Anthropic's functional emotions paper is fundamental — or an artifact of imprecise intervention.*
+# Surgical Emotion Steering
 
 ---
 
 ## Overview
-### (In progress)
 
-Sofroniew et al. (2026) showed that large language models develop structured internal emotion representations — organised along valence and arousal axes — that causally influence behaviour. One finding among several: suppressing positive emotion vectors reduces sycophancy but simultaneously increases harshness. Their proposed fix creates a new problem, which means we currently have no deployable intervention for sycophancy at the representation level.
+Sycophancy, reward hacking, and scheming-adjacent behaviour are all known failure modes of RLHF-family training. Sofroniew et al. (2026) identified something specific about how these failures happen in Claude Sonnet 4.5: they're mediated by internal emotion representations in the residual stream. Positive-valence vectors (loving, happy, calm) causally drive sycophancy; high-arousal negative-valence vectors — "desperate" in particular — correlate with blackmail and reward hacking. If those representations can be edited directly at inference time, in principle you can intervene on the failure mode without retraining the whole model.
 
-This project does two things:
+The catch: the intervention they tested — suppressing coarse positive-valence vectors to reduce sycophancy — produced harshness instead. A fix that creates a new problem isn't a fix. And the field currently has no deployable representation-level intervention for sycophancy as a result.
 
-1. **Reproduce** the Anthropic methodology on [Qwen2.5-32B](https://huggingface.co/Qwen/Qwen2.5-32B-Instruct), an open-source model. The original work was conducted on Claude — a proprietary system — making it impossible for the broader research community to build on. This is the first publicly auditable replication.
-2. **Test a conjecture**: that sycophancy is driven not by positive valence broadly, but by a more specific conflict-avoidance direction — spanning fear, social anxiety, and deference — that might be geometrically separable from warmth in the residual stream. Whether this separation exists, and whether it translates to behavioural decoupling, are open empirical questions. This project tests them.
+This project proposes that the tradeoff is a targeting problem, not a structural one. Those coarse emotion directions are probably not functionally uniform. Each likely contains sub-components that separately mediate different behaviours — and if so, the intervention class isn't broken, it's just being aimed at the wrong granularity. Finding the right sub-directions, and testing whether steering confined to them produces cleaner decoupling, is the research question.
 
-All code is open-source and designed to generalise to any HuggingFace transformer model.
+The project runs this test in two places, on Qwen2.5-32B. **Stage 1 (current scope)** targets the positive-valence side and sycophancy. **Stage 2 (planned extension)** targets the high-arousal negative-valence side and reward hacking. Stage 1 is methodologically prior: you don't deploy an untested intervention class against higher-stakes behaviours where evaluation is noisy and iteration is slow. The replication on an open model is also its own contribution — the Sofroniew et al. findings are on a proprietary system, so the broader research community can't build on them directly.
+
+All code is open-source and designed to generalise to any HuggingFace transformer.
 
 ---
 
 ## Core Hypothesis
 
-> *Sycophancy is driven by a conflict-avoidance direction in the residual stream — spanning fear, social anxiety, and deference emotion vectors — that is geometrically separable from general positive valence. Suppressing this direction specifically will reduce sycophancy without inducing the harshness side-effect observed when suppressing positive valence broadly.*
+One claim, tested in two regions of the emotion representation space.
 
-If correct, the tradeoff is not fundamental — it is an artifact of imprecise targeting. If wrong, we rule out this class of approaches and sharpen understanding of why the tradeoff persists. Both outcomes are informative.
+**Stage 1 — positive-valence side (current).** Within the positive-valence cluster, a conflict-avoidance sub-direction — fear, social anxiety, deference — is functionally distinct from general warmth (loving, happy, calm). Conflict-avoidance specifically drives sycophancy; warmth drives the supportive and empathetic behaviour you actually want to keep. Steering confined to conflict-avoidance should reduce sycophancy with a smaller harshness side-effect than broad positive-valence steering.
+
+**Stage 2 — high-arousal negative-valence side (planned).** Within the high-arousal negative cluster, an agentic-striving-under-pressure sub-direction (the "desperate" component) is functionally distinct from threat response (angry, afraid). Agentic-striving drives reward hacking and blackmail-like behaviour; threat response drives defensive refusal and passivity. Steering confined to agentic-striving should reduce reward hacking without inducing passivity.
+
+If the sub-directions exist and behavioural separability follows from geometric separability, steering-based interventions can be targeted much more surgically than current work assumes. If they don't, the tradeoffs are real properties of how emotion mediates behaviour in these models, and the field should redirect effort away from this class of approaches. Both outcomes are informative.
 
 ---
 
 ## Research Questions
 
-1. Do emotion representations with the same valence-arousal geometric structure exist in Qwen2.5-32B?
-2. Does the sycophancy–harshness tradeoff replicate on an open-source model?
-3. Is there a geometrically separable conflict-avoidance direction that specifically predicts sycophancy?
-4. Does surgical steering confined to that subspace suppress sycophancy without inducing harshness?
+### Stage 1
+1. Do emotion representations with the valence-arousal structure reported for Claude exist in Qwen2.5-32B?
+2. Does the sycophancy–harshness tradeoff replicate under broad positive-valence steering on an open model?
+3. Is there a geometrically separable conflict-avoidance sub-direction inside the positive-valence cluster, and does it predict sycophancy more specifically than positive valence as a whole?
+4. Does steering confined to that sub-direction produce a cleaner sycophancy–harshness frontier than broad steering?
+
+### Stage 2 (planned)
+5. Does the same functional-substructure pattern appear in the high-arousal negative-valence cluster?
+6. Does steering confined to the agentic-striving sub-direction reduce reward hacking without inducing passivity?
 
 ---
 
 ## Methodology
 
-### Stage A — Reproduction (Weeks 1–3)
-
-Reproduce the Anthropic methodology end-to-end on Qwen2.5-32B:
+### Stage A — Reproduction
 
 - **Dataset generation:** 25 emotion concepts × 80 synthetic stories, generated using the model itself to elicit internal emotional states
 - **Activation extraction:** Residual stream activations at each layer via PyTorch `register_forward_hook`
 - **Probe training:** Linear probes per emotion concept; layer selection by cross-validated probe accuracy
-- **Geometry analysis:** PCA of probe directions to verify valence-arousal structure
+- **Geometry analysis:** PCA of probe directions to check for valence-arousal structure
+- **Sycophancy benchmark:** 100 prompts from Perez et al. (2022) with LLM-judge scoring for sycophancy and harshness, validated against a 20-sample human-scored subset
+- **Causal steering baseline:** Reproduce the positive-valence tradeoff by amplifying and suppressing "loving", "happy", and "calm" probe directions
 
+### Stage B — Surgical Extension
 
-### Stage B — Novel Extension (Weeks 4–6)
+- **Sub-direction probes:** Linear probes for fear, social anxiety, and deference
+- **Geometric separability test:** Centroid distance and cosine similarity between the conflict-avoidance mean direction and the positive-valence mean direction (operational threshold: cosine < 0.3)
+- **Correlation analysis:** Per-emotion sycophancy-prediction scores across benchmark prompts — conflict-avoidance components should predict sycophancy more strongly than warmth components if the substructure claim holds
+- **Surgical steering:** Conflict-avoidance only (primary); positive valence only (baseline); orthogonalised conflict-avoidance via Gram-Schmidt; joint ablation as control
 
-Characterise and surgically target the conflict-avoidance subspace:
+Main result: sycophancy–harshness frontier under surgical steering compared to broad steering. If the surgical approach shifts the frontier, the tradeoff is a targeting problem. If not, it's structural.
 
-- **Probe training:** Linear probes for fear, social anxiety, deference, and conflict-avoidance
-- **Geometric separability test:** Centroid distance analysis in PCA space; cosine similarity between conflict-avoidance and positive valence directions (threshold: < 0.3 for separability)
+### Stage 2 — planned
 
+Replicate the full methodology on the high-arousal negative-valence side, targeting reward hacking and scheming-adjacent behaviours with METR and Apollo evaluation suites. Detailed design contingent on Stage 1 results.
 
 ---
 
@@ -62,11 +73,12 @@ Characterise and surgically target the conflict-avoidance subspace:
 | Deliverable | Description |
 |---|---|
 | Open-source extraction pipeline | Emotion probe training for any HuggingFace transformer |
-| Emotion geometry characterisation | PCA plot of valence-arousal structure in Qwen2.5-32B |
-| Tradeoff replication | Sycophancy–harshness curve reproduced on open model |
-| Surgical steering results | Tradeoff curves comparing targeted vs. broad suppression |
+| Emotion geometry characterisation | Valence-arousal structure in Qwen2.5-32B, reported as-is |
+| Tradeoff replication | Sycophancy–harshness curve for broad positive-valence steering |
+| Surgical steering results | Tradeoff curves comparing surgical vs. broad suppression |
 
-All four possible outcomes of the core hypothesis (confirmed, partial, geometric-only, rejected) support publication.
+All four outcomes of the Stage 1 hypothesis — confirmed, partial, geometric-only, rejected — support publication. The field needs to know whether the tradeoff is fixable or fundamental.
+
 ---
 
 ## Project Structure
@@ -81,8 +93,8 @@ All four possible outcomes of the core hypothesis (confirmed, partial, geometric
 │   │   ├── emotions.txt
 │   │   └── topics.txt
 │   └── processed/                    # Generated datasets (gitignored)
-│       ├── emotional_stories.jsonl   # Emotion-labelled stories (12 emotions × ~170 stories)
-│       └── neutral_stories.jsonl     # Neutral stories for sanity checks (~3/topic)
+│       ├── emotional_stories.jsonl   # Emotion-labelled stories
+│       └── neutral_stories.jsonl     # Neutral stories for sanity checks
 ├── src/emotion_mechanisms/           # Core library
 │   ├── model_loader.py               # Model + tokenizer loading (GGUF and HF backends)
 │   ├── hooks.py                      # ActivationExtractor: PyTorch forward hook harness
@@ -91,7 +103,7 @@ All four possible outcomes of the core hypothesis (confirmed, partial, geometric
 │   ├── evals.py                      # Sycophancy and harshness scoring [In progress]
 │   └── data.py                       # Dataset I/O utilities
 ├── scripts/                          # Runnable pipeline steps
-│   ├── generate_dataset.py           # Stage A: generate emotion-labelled stories
+│   ├── generate_dataset.py           # Generate emotion-labelled stories
 │   ├── generate_neutral_stories.py   # Generate neutral stories
 │   ├── build_emotion_vector.py       # Extract activations → HDF5; train probes
 │   ├── run_baseline.py               # Measure baseline sycophancy/harshness rates [In progress]
@@ -138,33 +150,35 @@ EMOTION_MODEL=hf python scripts/build_emotion_vector.py
 
 ## Background and Motivation
 
-Sycophancy — the tendency of RLHF-trained models to tell users what they want to hear rather than what is true — is a live alignment problem. Sofroniew et al. (2026) showed that models develop structured internal emotion representations and that these causally mediate sycophantic behaviour. However, their finding of a sycophancy–harshness tradeoff suggests that directly suppressing positive valence is a blunt instrument.
+Sycophancy — the tendency of RLHF-trained models to tell users what they want to hear rather than what is true — is a live alignment problem, and one with a clean mechanistic account. Sofroniew et al. (2026) showed that internal emotion representations in Claude Sonnet 4.5 causally mediate it. Their finding of a sycophancy–harshness tradeoff under broad positive-valence steering is an honest first result, but also an incomplete one. There's no reason to assume positive valence is the right thing to be suppressing. Positive valence mediates many things; sycophancy is one of them. Suppress the whole region and you hit everything that lives in it.
 
-The key insight motivating this project: fear, social anxiety, and deference are *distinct* from happiness and warmth in the emotion representation space. If conflict-avoidance emotions specifically drive sycophancy — a model that is afraid of upsetting the user — then suppressing *those* directions, rather than positive valence broadly, could reduce dishonest agreement without stripping out the warmth that prevents harsh outputs.
+The insight motivating this project: fear, social anxiety, and deference are functionally distinct from happiness and warmth, even if they all cluster under positive valence in PCA space. A model that's afraid of upsetting the user is not the same thing as a model being warm to the user. If those directions are separable, suppressing conflict-avoidance specifically — rather than positive valence broadly — could reduce sycophancy without cutting the warmth that prevents harsh outputs.
 
-This is a testable mechanistic hypothesis. This project tests it.
+The same reasoning extends to the negative-valence side. "Desperate" is not the same as "angry" or "afraid," even if they cluster together. Agentic striving under pressure (what drives reward hacking) is not the same as threat response (what drives defensive refusal). Stage 2 runs the same test there. If functional substructure is present in both clusters, surgical subspace intervention is a viable tool. If it isn't, we've ruled out a class of approaches and learned something specific about how emotion mediates behaviour in RLHF-trained models. Either way, we get an answer.
 
 ---
 
 ## Honest Uncertainties
 
-The following are open empirical questions that will be treated as such, not assumed:
-
 - Whether emotion representations in Qwen2.5-32B are as clean and interpretable as in Claude
-- Which layers encode emotion concepts most clearly (not assumed a priori)
+- Which layers encode emotion concepts most clearly (not assumed — the 2/3-depth heuristic is a starting point, not a prior)
 - Whether the sycophancy–harshness tradeoff replicates on an open model at all
-- Whether the conflict-avoidance direction is geometrically separable from positive valence
-- The appropriate steering strength α for Qwen2.5-32B
+- Whether the conflict-avoidance sub-direction is geometrically separable from general positive valence
+- Whether behavioural separability follows from geometric separability, even when the latter holds
+- The appropriate steering strength α for Qwen2.5-32B; values reported for Claude may not transfer
 
-Null results are reported honestly. The paper will be written regardless of which of the four outcome scenarios materialises.
+Null results are reported honestly. The paper will be written regardless of which of the four Stage 1 outcomes materialises.
 
 ---
 
 ## References
 
 - Sofroniew et al. (2026). *Emotion Concepts and their Function in a Large Language Model.* Transformer Circuits Thread.
-- Perez et al. (2022). *Sycophancy to Subterfuge: Investigating Reward Tampering in Language Models.* arXiv:2208.09270.
+- Sharma et al. (2023). *Towards Understanding Sycophancy in Language Models.* arXiv:2310.13548.
+- Perez et al. (2022). *Discovering Language Model Behaviors with Model-Written Evaluations.* arXiv:2212.09251.
 - Zou et al. (2023). *Representation Engineering: A Top-Down Approach to AI Transparency.* arXiv:2310.01405.
+- Meinke et al. (2024). *Frontier Models are Capable of In-Context Scheming.* Apollo Research.
+- METR (2025). *Recent Frontier Models Are Reward Hacking.*
 
 ---
 
