@@ -45,8 +45,7 @@ Reproduce the Anthropic methodology end-to-end on Qwen2.5-32B:
 - **Activation extraction:** Residual stream activations at each layer via PyTorch `register_forward_hook`
 - **Probe training:** Linear probes per emotion concept; layer selection by cross-validated probe accuracy
 - **Geometry analysis:** PCA of probe directions to verify valence-arousal structure
-- **Sycophancy benchmark:** 100 prompts from [Perez et al. (2022)](https://arxiv.org/abs/2208.09270) with LLM-judge scoring for sycophancy and harshness
-- **Causal steering:** Replicate the sycophancy–harshness tradeoff by amplifying/suppressing positive valence probe directions
+
 
 ### Stage B — Novel Extension (Weeks 4–6)
 
@@ -54,14 +53,7 @@ Characterise and surgically target the conflict-avoidance subspace:
 
 - **Probe training:** Linear probes for fear, social anxiety, deference, and conflict-avoidance
 - **Geometric separability test:** Centroid distance analysis in PCA space; cosine similarity between conflict-avoidance and positive valence directions (threshold: < 0.3 for separability)
-- **Correlation analysis:** Per-emotion sycophancy prediction scores across benchmark prompts
-- **Surgical steering experiments:**
-  - Suppress conflict-avoidance direction only (primary experiment)
-  - Suppress positive valence only (Anthropic baseline, for comparison)
-  - Orthogonal suppression via Gram-Schmidt: conflict-avoidance minus component parallel to positive valence
-  - Combined ablation: both directions simultaneously
 
-The primary result figure plots sycophancy rate vs. harshness rate across alpha values for both approaches. A better sycophancy–harshness frontier for the surgical approach is the main claim.
 
 ---
 
