@@ -3,6 +3,7 @@ import json, h5py
 import numpy as np
 import sys
 from pathlib import Path
+from tqdm import tqdm
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 SRC_DIR = PROJECT_ROOT / "src"
@@ -40,15 +41,15 @@ def load_and_group_dataset(emotional_dataset: Path, neutral_dataset: Path) -> tu
             row = json.loads(line)
             neutral.append(row["generated_text"])
     return emotions, neutral
-    
-def main(max_stories: int | None = None):
-    # Loading the dataset
-    emotions, neutral = load_and_group_dataset(emotional_dataset, neutral_dataset)
 
+def _load_and_trim_datasets(max_stories: int | None):
+    emotions, neutral = load_and_group_dataset(emotional_dataset, neutral_dataset)
     if max_stories is not None:
         emotions = {emo: stories[:max_stories] for emo, stories in emotions.items()}
         neutral = neutral[:max_stories]
+    return emotions, neutral
 
+def _setup_model_and_extractor():
     #Load the model and the tokenizer
     model, tokenizer, runtime = load_model_and_tokenizer(model_name="hf",
                                 analysis=True, analysis_model=ANALYSIS_MODEL_7B)
@@ -56,36 +57,96 @@ def main(max_stories: int | None = None):
     #Set up the activation extractor
     layer_indices = list(range(0, len(model.model.layers), LAYER_SAMPLE_STRIDE))
     extractor = ActivationExtractor(model, layer_indices)
+    return model, tokenizer, extractor, layer_indices
+    
+def _select_token(act, position: str):
+    """
+    Convert a full activation tensor into a single vector.
+    Parameters:
+                act: torch.Tensor, Shape = (batch_size, seq_len, hidden_dim)
+                position: str, Either "last" or "mean"
+    Returns: numpy array of shape (hidden_dim,)
+    """
+    act = act.float()                                           # Step 2: remove batch dimension (we always use batch_size = 1), # New shape: (seq_len, hidden_dim)
+    sequence_activations = act[0]
+    if position == "last":
+        selected_vector = sequence_activations[-1]             # Step 3A: take activation of the LAST token in the sequence, Shape: (hidden_dim,)
+    else:
+        selected_vector = sequence_activations.mean(dim=0)     # Step 3B: take MEAN across all tokens, Shape: (hidden_dim,)
+    selected_vector = selected_vector.detach().cpu().numpy()   # Step 4: move to CPU (if needed) and convert to numpy
+    return selected_vector
 
+def _extract_emotional_activations(emotions, tokenizer, model, extractor, layer_indices):
     emotional_activations = {emo: [] for emo in EMOTIONS}
+    total_emotional = sum(len(stories) for stories in emotions.values())
+
+    with tqdm(total=total_emotional, desc="Emotional stories") as pbar:
+        for emotion, stories in emotions.items():
+            for story in stories:
+                inputs = tokenizer(story, return_tensors="pt", truncation=True, max_length=2048).to(model.device)
+                activations = extractor.extract(**inputs)
+                story_activations = {}
+                
+                for layer_idx, activation_tensor in activations.items():
+                    selected_vector = _select_token(activation_tensor, TOKEN_POSITION)
+                    story_activations[layer_idx] = selected_vector
+
+                emotional_activations[emotion].append(story_activations)
+                pbar.set_postfix(emotion=emotion)
+                pbar.update(1)
+    return emotional_activations
+
+def _extract_neutral_activations(neutral, tokenizer, model, extractor, layer_indices):
     neutral_activations = []
-
-    def _select_token(act, position: str):
-        # act: (1, seq_len, hidden_dim) CPU tensor
-        act = act.float()
-        return act[0, -1, :].numpy() if position == "last" else act[0].mean(dim=0).numpy()
-
-    #Extract activations for emotional stories
-    for emotion, stories in emotions.items():
-        for story in stories:
-            inputs = tokenizer(story, return_tensors="pt", truncation=True, max_length=2048).to(model.device)
-            activations = extractor.extract(**inputs)
-            emotional_activations[emotion].append({l: _select_token(a, TOKEN_POSITION) for l, a in activations.items()})
-
-    #Extract activations for neutral stories
-    for story in neutral:
+    for story in tqdm(neutral, desc="Neutral stories"):
         inputs = tokenizer(story, return_tensors="pt", truncation=True, max_length=2048).to(model.device)
-        activations = extractor.extract(**inputs)
-        neutral_activations.append({l: _select_token(a, TOKEN_POSITION) for l, a in activations.items()})
 
-    #Save the activations to disk — one dataset per (emotion, layer) of shape (n_stories, hidden_dim)
+        activations = extractor.extract(**inputs)
+        story_activations = {}
+
+        for layer_idx, activation_tensor in activations.items():
+            selected_vector = _select_token(activation_tensor, TOKEN_POSITION)
+            story_activations[layer_idx] = selected_vector
+
+        neutral_activations.append(story_activations)
+    return neutral_activations
+
+def _save_activations(emotional_activations, neutral_activations, layer_indices):
+    # Each saved dataset has shape: (number_of_stories, hidden_dim)
     ACTIVATIONS_PATH.parent.mkdir(parents=True, exist_ok=True)
+
     with h5py.File(ACTIVATIONS_PATH, "w") as fout:
-        for emotion, vecs in emotional_activations.items():
+        for emotion, story_activation_list in emotional_activations.items():
             for layer_idx in layer_indices:
-                fout.create_dataset(f"emotional/{emotion}/layer_{layer_idx}", data=np.stack([v[layer_idx] for v in vecs]))
+                layer_vectors = []
+                for story_activations in story_activation_list:
+                    layer_vectors.append(story_activations[layer_idx])
+                layer_vectors = np.stack(layer_vectors)
+                fout.create_dataset(f"emotional/{emotion}/\"layer_{layer_idx}\"".replace('\"', ''), data=layer_vectors)
+
         for layer_idx in layer_indices:
-            fout.create_dataset(f"neutral/layer_{layer_idx}", data=np.stack([v[layer_idx] for v in neutral_activations]))
+            layer_vectors = []
+            for story_activations in neutral_activations:
+                layer_vectors.append(story_activations[layer_idx])
+            layer_vectors = np.stack(layer_vectors)
+            fout.create_dataset(f"neutral/\"layer_{layer_idx}\"".replace('\"', ''), data=layer_vectors)
+            
+def main(max_stories: int | None = None):
+    # Loading the dataset
+    emotions, neutral = _load_and_trim_datasets(max_stories=max_stories)
+
+    #Load the model and the tokenizer and set up the activation extractor
+    model, tokenizer, extractor, layer_indices = _setup_model_and_extractor()
+
+    # Extract activations for emotional stories
+    emotional_activations = _extract_emotional_activations(emotions, tokenizer, model, extractor, layer_indices)
+    
+    # Extract activations for neutral stories
+    neutral_activations = _extract_neutral_activations(neutral, tokenizer, model, extractor, layer_indices)
+
+    # Save the activations to disk, each saved dataset has shape: (number_of_stories, hidden_dim)
+    _save_activations(emotional_activations, neutral_activations, layer_indices)
+
 
 if __name__ == "__main__":
     main()
