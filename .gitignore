@@ -9,6 +9,7 @@
 ehthumbs.db
 Thumbs.db
 files/
+files_v2/
 
 # All the word and txt files
 *.txt
