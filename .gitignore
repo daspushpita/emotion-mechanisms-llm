@@ -10,6 +10,14 @@ ehthumbs.db
 Thumbs.db
 files/
 
+# All the word and txt files
+*.txt
+*.docx
+
+#Old READMEs
+README_mine.md
+project_plan.md
+
 # Distribution / packaging
 .Python
 
