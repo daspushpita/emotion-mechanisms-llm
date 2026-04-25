@@ -10,16 +10,14 @@ def main():
     text = "Alex stared at the email, heart racing, unsure what to do next."
     inputs = tokenizer(text, return_tensors="pt")
 
-    device = next(model.parameters()).device
+    device = runtime.get("input_device", next(model.parameters()).device)
     inputs = {k: v.to(device) for k, v in inputs.items()}
     
-    extractor = ActivationExtractor(model, [0, 8, 16, 24])
+    extractor = ActivationExtractor(model, [0, 8, 16, 24], token_position="last")
     activations = extractor.extract(**inputs)
 
-    for layer_idx, tensor in activations.items():
-        print(f"Layer {layer_idx}: shape = {tensor.shape}")
-        last_token_vec = tensor[0, -1, :]
-        print(f"Layer {layer_idx}: last token vec shape = {last_token_vec.shape}")
+    for layer_idx, vector in activations.items():
+        print(f"Layer {layer_idx}: vector shape = {vector.shape}")
 
 
 if __name__ == "__main__":

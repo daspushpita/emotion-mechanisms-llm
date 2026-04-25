@@ -132,7 +132,8 @@ else:
 
         # Test prompt — emotional content to verify probes will activate
         test_prompt = "She felt a wave of anxiety wash over her as she realized she would have to disagree with her boss."
-        inputs = tokenizer(test_prompt, return_tensors="pt").to(model.device)
+        input_device = next(model.parameters()).device
+        inputs = tokenizer(test_prompt, return_tensors="pt").to(input_device)
 
         print(f"  Running forward pass on test prompt...")
         with torch.no_grad():

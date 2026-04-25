@@ -1,10 +1,14 @@
+import numpy as np
 import torch
 
 class ActivationExtractor:
-    def __init__(self, model, layer_indices: list[int]):
+    def __init__(self, model, layer_indices: list[int], token_position: str = "last"):
+        if token_position not in {"last", "mean"}:
+            raise ValueError(f"Unknown token position: {token_position}")
+
+        self.token_position = token_position
         n_layers = len(model.model.layers)
-        bad = [i for i in layer_indices if not (0 <= i < n_layers)]
-        if bad:
+        if bad := [i for i in layer_indices if not (0 <= i < n_layers)]:
             raise ValueError(f"Layer indices {bad} out of range for model with {n_layers} layers")
 
         self.model = model
@@ -15,7 +19,11 @@ class ActivationExtractor:
     def _make_hook(self, layer_idx: int):
         def hook_fn(module, input, output):
             hidden_states = output[0] if isinstance(output, tuple) else output
-            self.activations[layer_idx] = hidden_states.detach().cpu()
+            if self.token_position == "last":
+                selected_vec = hidden_states[0, -1]
+            else:
+                selected_vec = hidden_states[0].mean(dim=0)
+            self.activations[layer_idx] = selected_vec.detach().float().cpu().numpy()
         return hook_fn
 
     def _register_hooks(self):
@@ -31,7 +39,7 @@ class ActivationExtractor:
             h.remove()
         self.handles = []
 
-    def extract(self, **model_inputs) -> dict[int, torch.Tensor]:
+    def extract(self, **model_inputs) -> dict[int, np.ndarray]:
         self.activations = {}
         self._register_hooks()
         try:
