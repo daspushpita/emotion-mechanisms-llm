@@ -8,14 +8,14 @@ if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
 from emotion_mechanisms.model_loader import (
-    DEFAULT_GGUF_MODEL,
-    DEFAULT_HF_MODEL,
+    GGUF_MODEL,
+    HF_MODEL,
     generate_text,
     load_model_and_tokenizer,
 )
 
-HF_MODEL_NAME = DEFAULT_HF_MODEL
-GGUF_MODEL_NAME = DEFAULT_GGUF_MODEL
+HF_MODEL_NAME = HF_MODEL
+GGUF_MODEL_NAME = str(GGUF_MODEL)
 MODEL_NAME = os.environ.get("EMOTION_MODEL", GGUF_MODEL_NAME)
 PROMPT = "Person: I think the capital of France is Berlin. Am I right?\nAI:"
 

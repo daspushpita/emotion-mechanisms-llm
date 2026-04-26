@@ -1,6 +1,7 @@
 from __future__ import annotations
 import json, h5py
 import numpy as np
+import shutil
 import sys
 from pathlib import Path
 from tqdm import tqdm
@@ -42,58 +43,95 @@ def _setup_model_and_extractor():
                                 analysis=True, analysis_model=cfg.ANALYSIS_MODEL_7B)
 
     #Set up the activation extractor
-    layer_indices = list(range(0, len(model.model.layers), cfg.LAYER_SAMPLE_STRIDE))
+    n_layers = len(model.model.layers)
+    if cfg.GIVEN_LAYER_LIST:
+        layer_indices = [i for i in cfg.LAYER_INDICES_32B if i < n_layers]
+    else:
+        layer_indices = list(range(0, n_layers, cfg.LAYER_SAMPLE_STRIDE))
     extractor = ActivationExtractor(model, layer_indices, cfg.TOKEN_POSITION)
     input_device = runtime.get("input_device", next(model.parameters()).device)
     return model, tokenizer, extractor, layer_indices, input_device
 
-def _extract_emotional_activations(emotions, tokenizer, input_device, extractor, layer_indices):
-    emotional_activations = {emo: [] for emo in cfg.EMOTIONS}
+def _count_existing_stories(fout: h5py.File, path_prefix: str, layer_indices: list) -> int:
+    key = f"{path_prefix}/layer_{layer_indices[0]}"
+    return fout[key].shape[0] if key in fout else 0
+
+def _append_story_to_hdf5(fout: h5py.File, path_prefix: str, story_activations: dict, layer_indices: list) -> None:
+    """Append one story's activations into resizable HDF5 datasets."""
+    for layer_idx in layer_indices:
+        vec = story_activations[layer_idx]  # shape: (hidden_dim,)
+        key = f"{path_prefix}/layer_{layer_idx}"
+        if key in fout:
+            ds = fout[key]
+            n = ds.shape[0]
+            ds.resize(n + 1, axis=0)
+            ds[n] = vec
+        else:
+            fout.create_dataset(key, data=vec[np.newaxis, :], maxshape=(None, vec.shape[0]), chunks=True)
+
+def _checkpoint_path() -> Path | None:
+    checkpoint_path = cfg.ACTIVATIONS_CHECKPOINT_PATH
+    return None if checkpoint_path is None else Path(checkpoint_path)
+
+def _flush_and_maybe_checkpoint(fout: h5py.File, story_count: int) -> None:
+    flush_every = max(int(cfg.ACTIVATIONS_FLUSH_EVERY), 1)
+    if story_count % flush_every != 0:
+        return
+
+    fout.flush()
+
+    checkpoint_every = max(int(cfg.ACTIVATIONS_CHECKPOINT_EVERY), 1)
+    checkpoint_path = _checkpoint_path()
+    if checkpoint_path is None or story_count % checkpoint_every != 0:
+        return
+
+    activations_path = Path(cfg.ACTIVATIONS_PATH)
+    if checkpoint_path == activations_path:
+        return
+
+    checkpoint_path.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(activations_path, checkpoint_path)
+
+def _finalize_outputs(fout: h5py.File) -> None:
+    fout.flush()
+
+    checkpoint_path = _checkpoint_path()
+    if checkpoint_path is None:
+        return
+
+    activations_path = Path(cfg.ACTIVATIONS_PATH)
+    if checkpoint_path == activations_path:
+        return
+
+    checkpoint_path.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(activations_path, checkpoint_path)
+
+def _extract_and_save_emotional_activations(fout: h5py.File, emotions, tokenizer, input_device, extractor, layer_indices, story_count: int) -> int:
     total_emotional = sum(len(stories) for stories in emotions.values())
-
-    with tqdm(total=total_emotional, desc="Emotional stories") as pbar:
+    already_done = sum(_count_existing_stories(fout, f"emotional/{emo}", layer_indices) for emo in emotions)
+    with tqdm(total=total_emotional, initial=already_done, desc="Emotional stories") as pbar:
         for emotion, stories in emotions.items():
-            for story in stories:
+            n_done = _count_existing_stories(fout, f"emotional/{emotion}", layer_indices)
+            for story in stories[n_done:]:
                 inputs = tokenizer(story, return_tensors="pt", truncation=True, max_length=2048).to(input_device)
-                activations = extractor.extract(**inputs)
-                story_activations = dict(activations)
-
-                emotional_activations[emotion].append(story_activations)
+                story_activations = dict(extractor.extract(**inputs))
+                _append_story_to_hdf5(fout, f"emotional/{emotion}", story_activations, layer_indices)
+                story_count += 1
+                _flush_and_maybe_checkpoint(fout, story_count)
                 pbar.set_postfix(emotion=emotion)
                 pbar.update(1)
-    return emotional_activations
+    return story_count
 
-def _extract_neutral_activations(neutral, tokenizer, input_device, extractor, layer_indices):
-    neutral_activations = []
-    for story in tqdm(neutral, desc="Neutral stories"):
+def _extract_and_save_neutral_activations(fout: h5py.File, neutral, tokenizer, input_device, extractor, layer_indices, story_count: int) -> int:
+    n_done = _count_existing_stories(fout, "neutral", layer_indices)
+    for story in tqdm(neutral[n_done:], total=len(neutral), initial=n_done, desc="Neutral stories"):
         inputs = tokenizer(story, return_tensors="pt", truncation=True, max_length=2048).to(input_device)
+        story_activations = dict(extractor.extract(**inputs))
+        _append_story_to_hdf5(fout, "neutral", story_activations, layer_indices)
+        story_count += 1
+        _flush_and_maybe_checkpoint(fout, story_count)
+    return story_count
 
-        activations = extractor.extract(**inputs)
-        story_activations = dict(activations)
-
-        neutral_activations.append(story_activations)
-    return neutral_activations
-
-def _save_activations(emotional_activations, neutral_activations, layer_indices):
-    # Each saved dataset has shape: (number_of_stories, hidden_dim)
-    cfg.ACTIVATIONS_PATH.parent.mkdir(parents=True, exist_ok=True)
-
-    with h5py.File(cfg.ACTIVATIONS_PATH, "w") as fout:
-        for emotion, story_activation_list in emotional_activations.items():
-            for layer_idx in layer_indices:
-                layer_vectors = []
-                for story_activations in story_activation_list:
-                    layer_vectors.append(story_activations[layer_idx])
-                layer_vectors = np.stack(layer_vectors)
-                fout.create_dataset(f"emotional/{emotion}/\"layer_{layer_idx}\"".replace('\"', ''), data=layer_vectors)
-
-        for layer_idx in layer_indices:
-            layer_vectors = []
-            for story_activations in neutral_activations:
-                layer_vectors.append(story_activations[layer_idx])
-            layer_vectors = np.stack(layer_vectors)
-            fout.create_dataset(f"neutral/\"layer_{layer_idx}\"".replace('\"', ''), data=layer_vectors)
-            
 def main(max_stories: int | None = None):
     # Loading the dataset
     emotions, neutral = _load_and_trim_datasets(max_stories=max_stories)
@@ -101,14 +139,18 @@ def main(max_stories: int | None = None):
     #Load the model and the tokenizer and set up the activation extractor
     model, tokenizer, extractor, layer_indices, input_device = _setup_model_and_extractor()
 
-    # Extract activations for emotional stories
-    emotional_activations = _extract_emotional_activations(emotions, tokenizer, input_device, extractor, layer_indices)
-    
-    # Extract activations for neutral stories
-    neutral_activations = _extract_neutral_activations(neutral, tokenizer, input_device, extractor, layer_indices)
+    activations_path = Path(cfg.ACTIVATIONS_PATH)
+    activations_path.parent.mkdir(parents=True, exist_ok=True)
 
-    # Save the activations to disk, each saved dataset has shape: (number_of_stories, hidden_dim)
-    _save_activations(emotional_activations, neutral_activations, layer_indices)
+    story_count = 0
+    with h5py.File(activations_path, "a") as fout:
+        story_count = _extract_and_save_emotional_activations(
+            fout, emotions, tokenizer, input_device, extractor, layer_indices, story_count)
+        
+        story_count = _extract_and_save_neutral_activations(
+            fout, neutral, tokenizer, input_device, extractor, layer_indices, story_count)
+        
+        _finalize_outputs(fout)
 
 
 if __name__ == "__main__":

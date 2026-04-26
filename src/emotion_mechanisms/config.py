@@ -21,6 +21,7 @@ NEUTRAL_TEMPLATE_PATH = RAW_DIR / "neutral_dialouge_prompt.txt"
 EMOTIONAL_STORIES_DATASET = PROCESSED_DIR / "emotional_stories_qwen32B_v1.jsonl"
 NEUTRAL_STORIES_DATASET = PROCESSED_DIR / "neutral_stories_qwen32B_v1.jsonl"
 ACTIVATIONS_PATH       = ACTIVATIONS_DIR / "activations.h5"
+ACTIVATIONS_CHECKPOINT_PATH: Path | None = None
 
 # ---------------------------------------------------------------------------
 # Emotions
@@ -79,5 +80,9 @@ ANALYSIS_MODEL_32B: str = "Qwen/Qwen2.5-32B-Instruct" # full run on A100
 # ---------------------------------------------------------------------------
 # Activation extraction
 # ---------------------------------------------------------------------------
+LAYER_INDICES_32B: list[int] = [0, 16, 32, 38, 42, 46, 50, 56]
+GIVEN_LAYER_LIST: bool = True  # if False, will auto-resolve layer indices from activations file keys
 LAYER_SAMPLE_STRIDE: int = 4   # extract every Nth layer during initial sweep
 TOKEN_POSITION: str = "last"   # "last" | "mean" — which token position to use as probe input
+ACTIVATIONS_FLUSH_EVERY: int = 10
+ACTIVATIONS_CHECKPOINT_EVERY: int = 10
