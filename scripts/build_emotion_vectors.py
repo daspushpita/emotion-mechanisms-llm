@@ -40,7 +40,7 @@ def _load_and_trim_datasets(max_stories: int | None):
 def _setup_model_and_extractor():
     #Load the model and the tokenizer
     model, tokenizer, runtime = load_model_and_tokenizer(model_name="hf",
-                                analysis=True, analysis_model=cfg.ANALYSIS_MODEL_7B)
+                                analysis=True, analysis_model=cfg.ANALYSIS_MODEL_32B)
 
     #Set up the activation extractor
     n_layers = len(model.model.layers)
