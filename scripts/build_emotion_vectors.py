@@ -4,7 +4,7 @@ import numpy as np
 import shutil
 import sys
 from pathlib import Path
-from tqdm import tqdm
+from tqdm.auto import tqdm
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 SRC_DIR = PROJECT_ROOT / "src"

@@ -79,7 +79,7 @@ def main():
         story_template = load_template(STORY_TEMPLATE_PATH)
         story_out_path = OUT_DIR / "emotional_stories.jsonl"
         init_jsonl(story_out_path)
-        emo_id = 0
+        emo_id = 2298  # Starting ID for emotional stories, can be adjusted as needed
         for topic in topics:
             for emotion in EMOTIONS:
                 for batch_start in range(0, N_SAMPLES_PER_TOPIC_EMOTION, N_STORIES):
