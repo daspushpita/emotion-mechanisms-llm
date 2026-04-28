@@ -6,6 +6,7 @@ import sys
 from pathlib import Path
 from sklearn.linear_model import LogisticRegression
 from sklearn.model_selection import cross_val_score
+from sklearn.decomposition import PCA
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 SRC_DIR = PROJECT_ROOT / "src"
@@ -19,12 +20,15 @@ PROBES_DIR = cfg.RESULTS_DIR / "probes"
 
 class EmotionVectorExtractor:
 
-    def __init__(self, activations_path: Path = cfg.ACTIVATIONS_PATH, layer_indices: list[int] | None = None):
+    def __init__(self, activations_path: Path = cfg.ACTIVATIONS_PATH, 
+                layer_indices: list[int] | None = None,
+                pca_variance_threshold: float = 0.50):
         self.activations_path = activations_path
         self.layer_indices = layer_indices  # resolved after load_activations if None
         self.activations = {}               # {layer_idx: {"emotional": {emotion: ndarray}, "neutral": ndarray}}
         self.mean_differences = {}          # {layer_idx: {emotion: ndarray}}
-
+        self.pca_variance_threshold = pca_variance_threshold
+        
     def load_activations(self):
         with h5py.File(self.activations_path, "r") as fin:
             if self.layer_indices is None:
@@ -38,6 +42,48 @@ class EmotionVectorExtractor:
                     self.activations[layer_idx]["emotional"][emotion] = fin[f"emotional/{emotion}/layer_{layer_idx}"][:]
                 self.activations[layer_idx]["neutral"] = fin[f"neutral/layer_{layer_idx}"][:]
 
+    def normalize(self, v, eps=1e-8):
+        return v / (np.linalg.norm(v) + eps)
+
+    def pca_denoise(self, layer: int) -> dict[str, np.ndarray]:
+        """Fit PCA on neutral activations and determine the number of components
+        needed to retain the specified variance threshold. 
+        And project out all the neutral PCA components from the emotional activations, to get the "PCA-denoised" emotional activations.
+        """
+        #First fit PCA on the neutral activations for this layer, and determine how many components we need to retain to preserve the specified variance threshold.
+        neutral_activations = self.activations[layer]["neutral"]
+        pca = PCA()
+        pca.fit(neutral_activations)
+        running_sum = np.cumsum(pca.explained_variance_ratio_)
+        n_components = np.searchsorted(running_sum, self.pca_variance_threshold) + 1
+        print(f"Layer {layer}: Retaining {n_components} PCA components to preserve {self.pca_variance_threshold*100:.1f}% variance")
+        neutral_pca_directions = pca.components_[:n_components]
+        self.neutral_pca_directions = neutral_pca_directions
+        
+        # This is the centroid of all emotional activations for this layer. 
+        # This first takes the mean activation for a certain emotion across all the stories,
+        # and then this takes the mean of those emotion centroids to get the overall emotional centroid. 
+
+        all_emotion_mean = np.mean([np.mean(self.activations[layer]["emotional"][emotion], axis=0) for emotion in self.activations[layer]["emotional"]], axis=0)
+        
+        processed_denoised_emotions = {}
+        
+        for emotion in cfg.EMOTIONS:
+            # Mean emotional vector for this emotion and layer (i.e. the mean across all the stories)...
+            mean_emotional_vector = np.mean(self.activations[layer]["emotional"][emotion], axis=0)
+            emotion_direction = mean_emotional_vector - all_emotion_mean
+            
+            # Now we project out the neutral PCA directions 
+            # from this mean-centered emotional vector, 
+            # to get the PCA-denoised emotional vector 
+            # for this emotion and layer.
+            for neutral_dir in neutral_pca_directions:
+                emotion_direction -= np.dot(emotion_direction, neutral_dir) * neutral_dir
+            
+            processed_denoised_emotions[emotion] = self.normalize(emotion_direction)
+        
+        return processed_denoised_emotions
+        
 
     def mean_diff(self, layer: int) -> dict[str, np.ndarray]:
         # for each emotion: mean(emotional) - mean(neutral), optionally PCA-denoised
@@ -48,43 +94,43 @@ class EmotionVectorExtractor:
             self.mean_differences[layer][emotion] = emotional_mean - neutral_mean
         return self.mean_differences[layer]
 
-def probe_accuracy(self, layer: int) -> dict[str, float]:
-    # Binary probe per emotion: this emotion vs. all other emotions.
-    accuracies = {}
-    for emotion in cfg.EMOTIONS:
-        x_pos = self.activations[layer]["emotional"][emotion]
-        x_neg = []
-        for other_emotion in cfg.EMOTIONS:
-            if other_emotion != emotion:
-                x_neg.append(self.activations[layer]["emotional"][other_emotion])
+    def probe_accuracy(self, layer: int) -> dict[str, float]:
+        # Binary probe per emotion: this emotion vs. all other emotions.
+        accuracies = {}
+        for emotion in cfg.EMOTIONS:
+            x_pos = self.activations[layer]["emotional"][emotion]
+            x_neg = []
+            for other_emotion in cfg.EMOTIONS:
+                if other_emotion != emotion:
+                    x_neg.append(self.activations[layer]["emotional"][other_emotion])
 
-        x_neg = np.vstack(x_neg)
-        X = np.vstack([x_pos, x_neg])
-        y = np.array([1] * len(x_pos) + [0] * len(x_neg))
+            x_neg = np.vstack(x_neg)
+            X = np.vstack([x_pos, x_neg])
+            y = np.array([1] * len(x_pos) + [0] * len(x_neg))
 
-        clf = LogisticRegression(max_iter=1000, class_weight="balanced")
-        accuracies[emotion] = cross_val_score(clf, X, y, cv=5).mean()
-    return accuracies
+            clf = LogisticRegression(max_iter=1000, class_weight="balanced")
+            accuracies[emotion] = cross_val_score(clf, X, y, cv=5).mean()
+        return accuracies
 
 
-def probe_directions(self, layer: int) -> dict[str, np.ndarray]:
-    # Fit full binary probe on all data and return L2-normalized weight vector.
-    # This weight vector is the emotion direction for this layer.
-    directions = {}
-    for emotion in cfg.EMOTIONS:
-        x_pos = self.activations[layer]["emotional"][emotion]
-        x_neg = []
-        for other_emotion in cfg.EMOTIONS:
-            if other_emotion != emotion:
-                x_neg.append(self.activations[layer]["emotional"][other_emotion])
-        x_neg = np.vstack(x_neg)
-        X = np.vstack([x_pos, x_neg])
-        y = np.array([1] * len(x_pos) + [0] * len(x_neg))
-        clf = LogisticRegression(max_iter=1000, class_weight="balanced")
-        clf.fit(X, y)
-        w = clf.coef_[0]
-        directions[emotion] = w / (np.linalg.norm(w) + 1e-8)
-    return directions
+    def probe_directions(self, layer: int) -> dict[str, np.ndarray]:
+        # Fit full binary probe on all data and return L2-normalized weight vector.
+        # This weight vector is the emotion direction for this layer.
+        directions = {}
+        for emotion in cfg.EMOTIONS:
+            x_pos = self.activations[layer]["emotional"][emotion]
+            x_neg = []
+            for other_emotion in cfg.EMOTIONS:
+                if other_emotion != emotion:
+                    x_neg.append(self.activations[layer]["emotional"][other_emotion])
+            x_neg = np.vstack(x_neg)
+            X = np.vstack([x_pos, x_neg])
+            y = np.array([1] * len(x_pos) + [0] * len(x_neg))
+            clf = LogisticRegression(max_iter=1000, class_weight="balanced")
+            clf.fit(X, y)
+            w = clf.coef_[0]
+            directions[emotion] = w / (np.linalg.norm(w) + 1e-8)
+        return directions
 
     def layer_sweep(self, layers: list[int]) -> dict[int, dict[str, float]]:
         return {layer: self.probe_accuracy(layer) for layer in layers}

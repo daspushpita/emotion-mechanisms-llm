@@ -1,3 +1,4 @@
+# Contains smoke test for model loading/generation.
 import os
 import sys
 from pathlib import Path
