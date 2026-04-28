@@ -36,6 +36,12 @@ def build_story_prompt(template: str, topic: str, emotion: str, n_stories: int) 
         emotion=emotion,
         n_stories=n_stories,
     )
+    
+def build_neutral_story_prompt(template: str, topic: str, n_stories: int) -> str:
+    return template.format(
+        topic=topic,
+        n_stories=n_stories,
+    )
 
 def save_jsonl(rows: list, path: Path) -> None:
     with open(path, "w", encoding="utf-8") as fout:

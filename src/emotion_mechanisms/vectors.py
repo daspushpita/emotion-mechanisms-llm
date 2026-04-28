@@ -3,9 +3,10 @@ from __future__ import annotations
 import h5py
 import numpy as np
 import sys
+from tqdm import tqdm
 from pathlib import Path
 from sklearn.linear_model import LogisticRegression
-from sklearn.model_selection import cross_val_score
+from sklearn.model_selection import StratifiedKFold, cross_validate
 from sklearn.decomposition import PCA
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -81,9 +82,7 @@ class EmotionVectorExtractor:
                 emotion_direction -= np.dot(emotion_direction, neutral_dir) * neutral_dir
             
             processed_denoised_emotions[emotion] = self.normalize(emotion_direction)
-        
         return processed_denoised_emotions
-        
 
     def mean_diff(self, layer: int) -> dict[str, np.ndarray]:
         # for each emotion: mean(emotional) - mean(neutral), optionally PCA-denoised
@@ -94,46 +93,55 @@ class EmotionVectorExtractor:
             self.mean_differences[layer][emotion] = emotional_mean - neutral_mean
         return self.mean_differences[layer]
 
-    def probe_accuracy(self, layer: int) -> dict[str, float]:
+    def probe_metrics(self, layer: int) -> dict[str, float]:
         # Binary probe per emotion: this emotion vs. all other emotions.
-        accuracies = {}
-        for emotion in cfg.EMOTIONS:
+        PROBE_SCORING = {"accuracy": "accuracy",
+                        "balanced_accuracy": "balanced_accuracy",
+                        "f1": "f1",
+                        "average_precision": "average_precision",
+                        "roc_auc": "roc_auc"}
+        metrics = {}
+        cv = StratifiedKFold(n_splits=5, shuffle=True, random_state=cfg.SEED)
+        
+        for emotion in tqdm(cfg.EMOTIONS, desc=f"Probe directions layer {layer}", unit="emotion"):
             x_pos = self.activations[layer]["emotional"][emotion]
-            x_neg = []
-            for other_emotion in cfg.EMOTIONS:
-                if other_emotion != emotion:
-                    x_neg.append(self.activations[layer]["emotional"][other_emotion])
-
+            x_neg = [self.activations[layer]["emotional"][other_emotion] for other_emotion in cfg.EMOTIONS if other_emotion != emotion]
+        
             x_neg = np.vstack(x_neg)
             X = np.vstack([x_pos, x_neg])
             y = np.array([1] * len(x_pos) + [0] * len(x_neg))
 
             clf = LogisticRegression(max_iter=1000, class_weight="balanced")
-            accuracies[emotion] = cross_val_score(clf, X, y, cv=5).mean()
-        return accuracies
+            scores = cross_validate(clf, X, y, cv=cv, scoring=PROBE_SCORING)
+            
+            majority_baseline = max(np.mean(y == 0), np.mean(y == 1))
+            metrics[emotion] = {metric: float(np.mean(scores[f"test_{metric}"])) for metric in PROBE_SCORING}
+            metrics[emotion]["majority_baseline"] = float(majority_baseline)
+            metrics[emotion]["positive_rate"] = float(np.mean(y))
+
+        return metrics
 
 
     def probe_directions(self, layer: int) -> dict[str, np.ndarray]:
-        # Fit full binary probe on all data and return L2-normalized weight vector.
-        # This weight vector is the emotion direction for this layer.
         directions = {}
-        for emotion in cfg.EMOTIONS:
+        for emotion in tqdm(cfg.EMOTIONS, desc=f"Probe directions layer {layer}", unit="emotion"):
             x_pos = self.activations[layer]["emotional"][emotion]
-            x_neg = []
-            for other_emotion in cfg.EMOTIONS:
-                if other_emotion != emotion:
-                    x_neg.append(self.activations[layer]["emotional"][other_emotion])
+            x_neg = [self.activations[layer]["emotional"][other_emotion] for other_emotion in cfg.EMOTIONS
+                if other_emotion != emotion]
+
             x_neg = np.vstack(x_neg)
             X = np.vstack([x_pos, x_neg])
             y = np.array([1] * len(x_pos) + [0] * len(x_neg))
+
             clf = LogisticRegression(max_iter=1000, class_weight="balanced")
             clf.fit(X, y)
             w = clf.coef_[0]
             directions[emotion] = w / (np.linalg.norm(w) + 1e-8)
+
         return directions
 
     def layer_sweep(self, layers: list[int]) -> dict[int, dict[str, float]]:
-        return {layer: self.probe_accuracy(layer) for layer in layers}
+        return {layer: self.probe_metrics(layer) for layer in layers}
 
     def save(self, directions: dict[str, np.ndarray], path: Path = PROBES_DIR) -> None:
         path.mkdir(parents=True, exist_ok=True)
@@ -141,17 +149,28 @@ class EmotionVectorExtractor:
             np.save(path / f"{emotion}.npy", direction)
 
 
-def main() -> None:
-    extractor = EmotionVectorExtractor()
+def main(activations_path: Path = cfg.ACTIVATIONS_PATH, 
+                layer_indices: list[int] | None = None,
+                pca_variance_threshold: float = 0.50) -> None:
+    
+    extractor = EmotionVectorExtractor(activations_path=activations_path,
+                layer_indices=layer_indices,
+                pca_variance_threshold=pca_variance_threshold)
+    
     extractor.load_activations()
     if cfg.GIVEN_LAYER_LIST:
         sweep_layers = cfg.LAYER_INDICES_32B
     else:
         sweep_layers = list(range(0, max(extractor.activations.keys()) + 1, cfg.LAYER_SAMPLE_STRIDE))
-    all_accuracies = extractor.layer_sweep(sweep_layers)
-    best_layer = max(sweep_layers, key=lambda l: np.mean(list(all_accuracies[l].values())))
+
+    all_metrics = extractor.layer_sweep(sweep_layers)
+    best_layer = max(sweep_layers, key=lambda layer: np.mean([m["balanced_accuracy"] for m in all_metrics[layer].values()]))
+
     print(f"Best layer: {best_layer}")
-    print(f"Probe accuracies: {all_accuracies[best_layer]}")
+    print(f"Probe metrics: {all_metrics[best_layer]}")
+    
+    print(f"All metrics: {all_metrics}")
+
     directions = extractor.mean_diff(best_layer)
     extractor.save(directions)
 
