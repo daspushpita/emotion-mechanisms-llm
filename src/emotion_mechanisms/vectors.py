@@ -48,19 +48,43 @@ class EmotionVectorExtractor:
             self.mean_differences[layer][emotion] = emotional_mean - neutral_mean
         return self.mean_differences[layer]
 
-    def probe_accuracy(self, layer: int) -> dict[str, float]:
-        # fit a binary logistic probe per emotion at this layer, return CV accuracies
-        accuracies = {}
-        for emotion in cfg.EMOTIONS:
-            x_pos = self.activations[layer]["emotional"][emotion]
-            x_neg = np.concatenate([self.activations[layer]["emotional"][e] for e in cfg.EMOTIONS if e != emotion]
-                    + [self.activations[layer]["neutral"]])
-            X = np.vstack([x_pos, x_neg])
-            y = np.array([1] * len(x_pos) + [0] * len(x_neg))
-            clf = LogisticRegression(max_iter=1000)
-            accuracies[emotion] = cross_val_score(clf, X, y, cv=5).mean()
-        return accuracies
+def probe_accuracy(self, layer: int) -> dict[str, float]:
+    # Binary probe per emotion: this emotion vs. all other emotions.
+    accuracies = {}
+    for emotion in cfg.EMOTIONS:
+        x_pos = self.activations[layer]["emotional"][emotion]
+        x_neg = []
+        for other_emotion in cfg.EMOTIONS:
+            if other_emotion != emotion:
+                x_neg.append(self.activations[layer]["emotional"][other_emotion])
 
+        x_neg = np.vstack(x_neg)
+        X = np.vstack([x_pos, x_neg])
+        y = np.array([1] * len(x_pos) + [0] * len(x_neg))
+
+        clf = LogisticRegression(max_iter=1000, class_weight="balanced")
+        accuracies[emotion] = cross_val_score(clf, X, y, cv=5).mean()
+    return accuracies
+
+
+def probe_directions(self, layer: int) -> dict[str, np.ndarray]:
+    # Fit full binary probe on all data and return L2-normalized weight vector.
+    # This weight vector is the emotion direction for this layer.
+    directions = {}
+    for emotion in cfg.EMOTIONS:
+        x_pos = self.activations[layer]["emotional"][emotion]
+        x_neg = []
+        for other_emotion in cfg.EMOTIONS:
+            if other_emotion != emotion:
+                x_neg.append(self.activations[layer]["emotional"][other_emotion])
+        x_neg = np.vstack(x_neg)
+        X = np.vstack([x_pos, x_neg])
+        y = np.array([1] * len(x_pos) + [0] * len(x_neg))
+        clf = LogisticRegression(max_iter=1000, class_weight="balanced")
+        clf.fit(X, y)
+        w = clf.coef_[0]
+        directions[emotion] = w / (np.linalg.norm(w) + 1e-8)
+    return directions
 
     def layer_sweep(self, layers: list[int]) -> dict[int, dict[str, float]]:
         return {layer: self.probe_accuracy(layer) for layer in layers}
