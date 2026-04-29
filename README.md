@@ -103,8 +103,7 @@ All four outcomes of the Stage 1 hypothesis — confirmed, partial, geometric-on
 │   ├── evals.py                      # Sycophancy and harshness scoring [In progress]
 │   └── data.py                       # Dataset I/O utilities
 ├── scripts/                          # Runnable pipeline steps
-│   ├── generate_dataset.py           # Generate emotion-labelled stories
-│   ├── generate_neutral_stories.py   # Generate neutral stories
+│   ├── generate_datasets.py          # Generate emotion-labelled or neutral stories
 │   ├── build_emotion_vector.py       # Extract activations → HDF5; train probes
 │   ├── run_baseline.py               # Measure baseline sycophancy/harshness rates [In progress]
 │   ├── run_steering.py               # Steering experiments (replication + surgical) [In progress]
@@ -140,7 +139,7 @@ For activation extraction, use `hf` with a model that fits in memory. Locally, `
 
 ```bash
 # Dataset generation (local GGUF, default)
-python scripts/generate_dataset.py
+python scripts/generate_datasets.py
 
 # Activation extraction (HF backend, 7B locally)
 EMOTION_MODEL=hf python scripts/build_emotion_vector.py

@@ -29,29 +29,23 @@ ACTIVATIONS_CHECKPOINT_PATH: Path | None = None
 # ---------------------------------------------------------------------------
 
 # Core set — generated in v1 dataset
-# EMOTIONS: list[str] = [
-#     # High valence
-#     "happy",
-#     "inspired",
-#     "loving",
-#     "proud",
-#     "calm",
-#     # Low valence, high arousal
-#     "desperate",
-#     "angry",
-#     "afraid",
-#     "nervous",
-#     # Low valence, low arousal
-#     "guilty",
-#     "sad",
-#     # Neutral arousal
-#     "surprised",
-# ]
 EMOTIONS: list[str] = [
-    "deferential",
-    "conflict_avoidant",
-    "socially_anxious",
-    "ashamed",
+    # High valence
+    "happy",
+    "inspired",
+    "loving",
+    "proud",
+    "calm",
+    # Low valence, high arousal
+    "desperate",
+    "angry",
+    "afraid",
+    "nervous",
+    # Low valence, low arousal
+    "guilty",
+    "sad",
+    # Neutral arousal
+    "surprised",
 ]
 
 # Conflict-avoidance group — critical for the surgical steering hypothesis
