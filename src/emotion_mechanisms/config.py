@@ -14,7 +14,7 @@ ACTIVATIONS_DIR = RESULTS_DIR / "activations"
 
 TOPICS_PATH           = RAW_DIR / "topics_v1.txt"       # 15 topics used for v1 dataset
 TOPICS_FULL_PATH      = RAW_DIR / "topics.txt"          # 85 topics for future expansion
-STORY_TEMPLATE_PATH   = RAW_DIR / "stories_prompt_v2.txt"
+STORY_TEMPLATE_PATH   = RAW_DIR / "stories_prompt.txt"
 NEUTRAL_STORIES_TEMPLATE_PATH   = RAW_DIR / "neutral_stories_prompt.txt"
 EMOTIONAL_TEMPLATE_PATH = RAW_DIR / "emotional_dialouge_prompt.txt"
 NEUTRAL_TEMPLATE_PATH = RAW_DIR / "neutral_dialouge_prompt.txt"
