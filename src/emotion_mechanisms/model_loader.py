@@ -95,11 +95,13 @@ def generate_text(model,
 
     device = runtime.get("input_device", runtime["device"])
     if getattr(tokenizer, "chat_template", None):
-        input_ids = tokenizer.apply_chat_template(
+        chat_out = tokenizer.apply_chat_template(
                     [{"role": "user", "content": prompt}],
                     add_generation_prompt=True,
                     return_tensors="pt",
-                ).to(device)
+                )
+        # newer transformers returns BatchEncoding; older returns a raw tensor
+        input_ids = (chat_out.input_ids if hasattr(chat_out, "input_ids") else chat_out).to(device)
         input_length = input_ids.shape[-1]
         generation_inputs = {"input_ids": input_ids}
     else:
