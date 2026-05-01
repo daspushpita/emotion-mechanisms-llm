@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 import h5py
+import json
 import numpy as np
 import sys
 from tqdm import tqdm
 from pathlib import Path
+from joblib import Parallel, delayed
 from sklearn.linear_model import LogisticRegression
 from sklearn.model_selection import StratifiedKFold, cross_validate
 from sklearn.decomposition import PCA
@@ -21,25 +23,27 @@ PROBES_DIR = cfg.RESULTS_DIR / "probes"
 
 class EmotionVectorExtractor:
 
-    def __init__(self, activations_path: Path = cfg.ACTIVATIONS_PATH, 
+    def __init__(self, activations_path: Path = cfg.ACTIVATIONS_PATH,
                 layer_indices: list[int] | None = None,
-                pca_variance_threshold: float = 0.50):
+                pca_variance_threshold: float = 0.50,
+                emotions: list[str] | None = None):
         self.activations_path = activations_path
         self.layer_indices = layer_indices  # resolved after load_activations if None
         self.activations = {}               # {layer_idx: {"emotional": {emotion: ndarray}, "neutral": ndarray}}
         self.mean_differences = {}          # {layer_idx: {emotion: ndarray}}
         self.pca_variance_threshold = pca_variance_threshold
+        self.emotions = emotions if emotions is not None else cfg.EMOTIONS
         
     def load_activations(self):
         with h5py.File(self.activations_path, "r") as fin:
             if self.layer_indices is None:
                 self.layer_indices = sorted(
-                    int(k.replace("layer_", "")) for k in fin[f"emotional/{cfg.EMOTIONS[0]}"].keys()
+                    int(k.replace("layer_", "")) for k in fin[f"emotional/{self.emotions[0]}"].keys()
                 )
 
             for layer_idx in self.layer_indices:
                 self.activations[layer_idx] = {"emotional": {}, "neutral": None}
-                for emotion in cfg.EMOTIONS:
+                for emotion in self.emotions:
                     self.activations[layer_idx]["emotional"][emotion] = fin[f"emotional/{emotion}/layer_{layer_idx}"][:]
                 self.activations[layer_idx]["neutral"] = fin[f"neutral/layer_{layer_idx}"][:]
 
@@ -69,7 +73,7 @@ class EmotionVectorExtractor:
         
         processed_denoised_emotions = {}
         
-        for emotion in cfg.EMOTIONS:
+        for emotion in self.emotions:
             # Mean emotional vector for this emotion and layer (i.e. the mean across all the stories)...
             mean_emotional_vector = np.mean(self.activations[layer]["emotional"][emotion], axis=0)
             emotion_direction = mean_emotional_vector - all_emotion_mean
@@ -88,7 +92,7 @@ class EmotionVectorExtractor:
         # for each emotion: mean(emotional) - mean(neutral), optionally PCA-denoised
         self.mean_differences[layer] = {}
         neutral_mean = self.activations[layer]["neutral"].mean(axis=0)
-        for emotion in cfg.EMOTIONS:
+        for emotion in self.emotions:
             emotional_mean = self.activations[layer]["emotional"][emotion].mean(axis=0)
             self.mean_differences[layer][emotion] = emotional_mean - neutral_mean
         return self.mean_differences[layer]
@@ -103,16 +107,16 @@ class EmotionVectorExtractor:
         metrics = {}
         cv = StratifiedKFold(n_splits=5, shuffle=True, random_state=cfg.SEED)
         
-        for emotion in tqdm(cfg.EMOTIONS, desc=f"Probe directions layer {layer}", unit="emotion"):
+        for emotion in tqdm(self.emotions, desc=f"Probe directions layer {layer}", unit="emotion"):
             x_pos = self.activations[layer]["emotional"][emotion]
-            x_neg = [self.activations[layer]["emotional"][other_emotion] for other_emotion in cfg.EMOTIONS if other_emotion != emotion]
-        
+            x_neg = [self.activations[layer]["emotional"][other_emotion] for other_emotion in self.emotions if other_emotion != emotion]
+
             x_neg = np.vstack(x_neg)
             X = np.vstack([x_pos, x_neg])
             y = np.array([1] * len(x_pos) + [0] * len(x_neg))
 
             clf = LogisticRegression(max_iter=1000, class_weight="balanced")
-            scores = cross_validate(clf, X, y, cv=cv, scoring=PROBE_SCORING)
+            scores = cross_validate(clf, X, y, cv=cv, scoring=PROBE_SCORING, n_jobs=-1)
             
             majority_baseline = max(np.mean(y == 0), np.mean(y == 1))
             metrics[emotion] = {metric: float(np.mean(scores[f"test_{metric}"])) for metric in PROBE_SCORING}
@@ -124,9 +128,9 @@ class EmotionVectorExtractor:
 
     def probe_directions(self, layer: int) -> dict[str, np.ndarray]:
         directions = {}
-        for emotion in tqdm(cfg.EMOTIONS, desc=f"Probe directions layer {layer}", unit="emotion"):
+        for emotion in tqdm(self.emotions, desc=f"Probe directions layer {layer}", unit="emotion"):
             x_pos = self.activations[layer]["emotional"][emotion]
-            x_neg = [self.activations[layer]["emotional"][other_emotion] for other_emotion in cfg.EMOTIONS
+            x_neg = [self.activations[layer]["emotional"][other_emotion] for other_emotion in self.emotions
                 if other_emotion != emotion]
 
             x_neg = np.vstack(x_neg)
@@ -141,22 +145,34 @@ class EmotionVectorExtractor:
         return directions
 
     def layer_sweep(self, layers: list[int]) -> dict[int, dict[str, float]]:
-        return {layer: self.probe_metrics(layer) for layer in layers}
+        results = Parallel(n_jobs=-1, prefer="threads")(
+            delayed(self.probe_metrics)(layer) for layer in layers
+        )
+        return dict(zip(layers, results))
 
-    def save(self, directions: dict[str, np.ndarray], path: Path = PROBES_DIR) -> None:
+    def save_vectors(self, directions: dict[str, np.ndarray], subdir: str, root: Path = PROBES_DIR) -> None:
+        path = root / subdir
         path.mkdir(parents=True, exist_ok=True)
         for emotion, direction in directions.items():
             np.save(path / f"{emotion}.npy", direction)
 
+    def save_metrics(self, all_metrics: dict[int, dict], best_layer: int, root: Path = PROBES_DIR) -> None:
+        root.mkdir(parents=True, exist_ok=True)
+        # layer index keyed as strings for JSON compatibility
+        serialisable = {str(layer): metrics for layer, metrics in all_metrics.items()}
+        with open(root / "metrics_all_layers.json", "w") as f:
+            json.dump(serialisable, f, indent=2)
+        with open(root / "best_layer.txt", "w") as f:
+            f.write(str(best_layer))
 
-def main(activations_path: Path = cfg.ACTIVATIONS_PATH, 
+def main(activations_path: Path = cfg.ACTIVATIONS_PATH,
                 layer_indices: list[int] | None = None,
                 pca_variance_threshold: float = 0.50) -> None:
-    
+
     extractor = EmotionVectorExtractor(activations_path=activations_path,
                 layer_indices=layer_indices,
                 pca_variance_threshold=pca_variance_threshold)
-    
+
     extractor.load_activations()
     if cfg.GIVEN_LAYER_LIST:
         sweep_layers = cfg.LAYER_INDICES_32B
@@ -167,12 +183,18 @@ def main(activations_path: Path = cfg.ACTIVATIONS_PATH,
     best_layer = max(sweep_layers, key=lambda layer: np.mean([m["balanced_accuracy"] for m in all_metrics[layer].values()]))
 
     print(f"Best layer: {best_layer}")
-    print(f"Probe metrics: {all_metrics[best_layer]}")
-    
-    print(f"All metrics: {all_metrics}")
+    print(f"Best layer metrics: {all_metrics[best_layer]}")
 
-    directions = extractor.mean_diff(best_layer)
-    extractor.save(directions)
+    extractor.save_metrics(all_metrics, best_layer)
+
+    mean_diff_dirs = extractor.mean_diff(best_layer)
+    extractor.save_vectors(mean_diff_dirs, subdir="mean_diff")
+
+    probe_dirs = extractor.probe_directions(best_layer)
+    extractor.save_vectors(probe_dirs, subdir="probe")
+
+    pca_dirs = extractor.pca_denoise(best_layer)
+    extractor.save_vectors(pca_dirs, subdir="pca_denoised")
 
 
 if __name__ == "__main__":

@@ -68,6 +68,41 @@ Replicate the full methodology on the high-arousal negative-valence side, target
 
 ---
 
+## Preliminary Results
+
+### Activation extraction
+
+Both extraction runs completed on Qwen2.5-32B (80GB A100, all 64 layers):
+
+| Emotion set | N emotions | Stories per emotion | Best probe layer |
+|---|---|---|---|
+| Core 12 | 12 | ~190 | **32** (~50% depth) |
+| Conflict-avoidance | 9 | ~190 | **43** (~67% depth) |
+
+Core 12: afraid, angry, calm, desperate, guilty, happy, inspired, loving, nervous, proud, sad, surprised.
+
+Conflict-avoidance 9: approval_seeking, ashamed, conflict_avoidant, deferential, obsequious, people_pleasing, socially_anxious, submissive, validation_seeking.
+
+### Emotion geometry
+
+PCA of mean-diff probe directions at their respective best layers, projected into a shared 2D space:
+
+![Combined PCA of core and conflict-avoidance emotion directions](results/figures/output.png)
+
+**PC1 recovers valence.** Positive-valence emotions (happy, proud, loving, inspired, calm) anchor the right side; negative-valence emotions (afraid, angry, desperate, nervous, sad, guilty) anchor the left. This replicates the valence-arousal structure reported for Claude Sonnet 4.5 on an open model.
+
+**The conflict-avoidance group is not a single cluster.** This is the key early finding for the surgical steering hypothesis:
+
+- `deferential` sits in the positive-valence quadrant, geometrically close to `calm` — it is the conflict-avoidance emotion most embedded within the positive-valence region
+- `approval_seeking`, `validation_seeking`, and `people_pleasing` form a tight sub-cluster in the positive-PC1 / negative-PC2 quadrant, distinct from both the warmth cluster and the fear cluster
+- `submissive` is an outlier at high PC2 with near-zero valence
+- `ashamed` and `socially_anxious` sit in the negative-valence region alongside `sad` and `nervous`
+- `conflict_avoidant` and `obsequious` lie near the centre
+
+The internal spread of the conflict-avoidance group is consistent with the hypothesis that it is not a single direction: the approval-seeking sub-cluster (bottom-right) and the fear-adjacent sub-cluster (ashamed, socially_anxious) may drive sycophancy through different mechanisms. Whether the directions are separable enough to steer independently is the next test.
+
+---
+
 ## Expected Outcomes
 
 | Deliverable | Description |
@@ -98,13 +133,14 @@ All four outcomes of the Stage 1 hypothesis — confirmed, partial, geometric-on
 ├── src/emotion_mechanisms/           # Core library
 │   ├── model_loader.py               # Model + tokenizer loading (GGUF and HF backends)
 │   ├── hooks.py                      # ActivationExtractor: PyTorch forward hook harness
-│   ├── vectors.py                    # Probe training and emotion direction extraction [In progress]
+│   ├── vectors.py                    # Probe training and emotion direction extraction
 │   ├── steering.py                   # Causal steering via residual stream hooks [In progress]
 │   ├── evals.py                      # Sycophancy and harshness scoring [In progress]
 │   └── data.py                       # Dataset I/O utilities
 ├── scripts/                          # Runnable pipeline steps
 │   ├── generate_datasets.py          # Generate emotion-labelled or neutral stories
-│   ├── build_emotion_vector.py       # Extract activations → HDF5; train probes
+│   ├── build_emotion_vectors.py      # Extract activations → HDF5
+│   ├── run_linear_probes.py          # Train probes across all 64 layers; save directions
 │   ├── run_baseline.py               # Measure baseline sycophancy/harshness rates [In progress]
 │   ├── run_steering.py               # Steering experiments (replication + surgical) [In progress]
 │   └── evaluate_results.py           # Geometry analysis, PCA plots, tradeoff curves [In progress]
