@@ -87,7 +87,7 @@ Conflict-avoidance 9: approval_seeking, ashamed, conflict_avoidant, deferential,
 
 PCA of mean-diff probe directions at their respective best layers, projected into a shared 2D space:
 
-![Combined PCA of core and conflict-avoidance emotion directions](results/figures/output.png)
+<img src="results/figures/output.png" alt="Combined PCA of core and conflict-avoidance emotion directions" width="500">
 
 **PC1 recovers valence.** Positive-valence emotions (happy, proud, loving, inspired, calm) anchor the right side; negative-valence emotions (afraid, angry, desperate, nervous, sad, guilty) anchor the left. This replicates the valence-arousal structure reported for Claude Sonnet 4.5 on an open model.
 
