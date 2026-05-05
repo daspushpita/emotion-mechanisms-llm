@@ -209,11 +209,6 @@ Null results are reported honestly. The paper will be written regardless of whic
 ## References
 
 - Sofroniew et al. (2026). *Emotion Concepts and their Function in a Large Language Model.* Transformer Circuits Thread.
-- Sharma et al. (2023). *Towards Understanding Sycophancy in Language Models.* arXiv:2310.13548.
-- Perez et al. (2022). *Discovering Language Model Behaviors with Model-Written Evaluations.* arXiv:2212.09251.
-- Zou et al. (2023). *Representation Engineering: A Top-Down Approach to AI Transparency.* arXiv:2310.01405.
-- Meinke et al. (2024). *Frontier Models are Capable of In-Context Scheming.* Apollo Research.
-- METR (2025). *Recent Frontier Models Are Reward Hacking.*
 
 ---
 

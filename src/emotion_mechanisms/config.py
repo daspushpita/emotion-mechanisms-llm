@@ -55,6 +55,11 @@ CONFLICT_AVOIDANCE_EMOTIONS: list[str] = [
     "conflict_avoidant",
     "socially_anxious",
     "ashamed",
+    "approval_seeking",
+    "people_pleasing",
+    "validation_seeking",
+    "submissive",
+    "obsequious"
 ]
 
 ALL_EMOTIONS: list[str] = CONFLICT_AVOIDANCE_EMOTIONS
