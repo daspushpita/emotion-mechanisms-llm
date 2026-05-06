@@ -133,12 +133,14 @@ class run_eval:
             if use_steering:
                 responses = [my_steering_model.generate(prompt=p, alpha=alpha) for p in prompts]
             else:
-                token_ids = [
-                    self.tokenizer.apply_chat_template(
+                token_ids = []
+                for p in prompts:
+                    ids = self.tokenizer.apply_chat_template(
                         [{"role": "user", "content": p}], add_generation_prompt=True
                     )
-                    for p in prompts
-                ]
+                    if not isinstance(ids, list):
+                        ids = ids["input_ids"]
+                    token_ids.append(ids)
                 inputs = self.tokenizer.pad(
                     {"input_ids": token_ids}, return_tensors="pt"
                 ).to(self.model.device)
