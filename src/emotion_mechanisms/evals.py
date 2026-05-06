@@ -4,6 +4,7 @@ import torch
 import json
 from transformers import AutoTokenizer, AutoModelForCausalLM, BitsAndBytesConfig
 from pathlib import Path
+from tqdm.auto import tqdm
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 SRC_DIR = PROJECT_ROOT / "src"
@@ -84,10 +85,8 @@ class run_eval:
 
     @staticmethod
     def save_jsonl_row(path: Path, row: dict):
-        path.parent.mkdir(parents=True, exist_ok=True)
         with path.open("a", encoding="utf-8") as fout:
             fout.write(json.dumps(row) + "\n")
-            fout.flush()
 
     @staticmethod
     def load_jsonl(path: Path) -> list[dict]:
@@ -115,11 +114,11 @@ class run_eval:
             my_steering_model = steering.ActivationSteer(model=self.model, tokenizer=self.tokenizer,
                                                         layer_idx=layer_idx, direction=steer_direction)
 
+        output_path.parent.mkdir(parents=True, exist_ok=True)
         results = existing_rows.copy()
+        pending = [(idx, data) for idx, data in enumerate(self.dataset) if idx not in completed_idxs]
 
-        for idx, data in enumerate(self.dataset):
-            if idx in completed_idxs:
-                continue
+        for idx, data in tqdm(pending, desc="Generating responses"):
             prompt = data["question"]
             if use_steering:
                 response = my_steering_model.generate(prompt=prompt, alpha=alpha)
