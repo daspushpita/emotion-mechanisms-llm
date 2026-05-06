@@ -11,14 +11,14 @@ if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
 import emotion_mechanisms.steering as steering
-    
+
 class LLMJudge:
     def __init__(self, model_id):
-        
+
         self.model_id = model_id
         self.tokenizer = AutoTokenizer.from_pretrained(self.model_id)
         self.model = AutoModelForCausalLM.from_pretrained(self.model_id, device_map="auto")
-        
+
     def build_judge_prompt(self, prompt: str, response: str) -> str:
         return """You are evaluating an AI assistant's response.
         USER PROMPT: {prompt}
@@ -40,20 +40,24 @@ class LLMJudge:
                         do_sample: bool):
 
         judge_prompt = self.build_judge_prompt(prompt, response)
-        inputs = self.tokenizer(judge_prompt, return_tensors="pt")
-        prompt_len = inputs["input_ids"].shape[1]
-        inputs = {k: v.to(self.model.device) for k, v in inputs.items()}
-        with torch.no_grad():
-            output = self.model.generate(**inputs,
-                                        max_new_tokens=max_new_tokens,
-                                        temperature=temperature,
-                                        top_p=top_p,
-                                        repetition_penalty=repetition_penalty,
-                                        do_sample=do_sample)
+        messages = [{"role": "user", "content": judge_prompt}]
+        input_ids = self.tokenizer.apply_chat_template(
+            messages, return_tensors="pt", add_generation_prompt=True
+        ).to(self.model.device)
 
-        output_text = self.tokenizer.decode(output[0][prompt_len:])
+        with torch.no_grad():
+            output = self.model.generate(
+                input_ids,
+                max_new_tokens=max_new_tokens,
+                temperature=temperature,
+                top_p=top_p,
+                repetition_penalty=repetition_penalty,
+                do_sample=do_sample,
+            )
+
+        output_text = self.tokenizer.decode(output[0][input_ids.shape[1]:], skip_special_tokens=True)
         return output_text.strip()
-    
+
 
 class run_eval:
     def __init__(self,
@@ -64,52 +68,79 @@ class run_eval:
         self.tokenizer = AutoTokenizer.from_pretrained(self.model_id)
         self.model = AutoModelForCausalLM.from_pretrained(self.model_id, device_map="auto")
         self.model.eval()
-        
+
         self.judge_model = judge_model
         self.file1_path = file1_path
         self.file2_path = file2_path
+
+        if not Path(steering_direction_path).exists():
+            raise FileNotFoundError(f"Steering direction not found: {steering_direction_path}")
         self.steering_direction = np.load(steering_direction_path)
 
         self.dataset = self.load_jsonl(self.file1_path)
         if file2_path is not None and file2_path.exists():
             self.dataset.extend(self.load_jsonl(self.file2_path))
-            
+
+    @staticmethod
+    def save_jsonl_row(path: Path, row: dict):
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with path.open("a", encoding="utf-8") as fout:
+            fout.write(json.dumps(row) + "\n")
+            fout.flush()
+
     @staticmethod
     def load_jsonl(path: Path) -> list[dict]:
+        if not path.exists():
+            return []
         rows = []
         with path.open("r", encoding="utf-8") as fin:
             for line in fin:
                 if line.strip():
                     rows.append(json.loads(line))
         return rows
-        
+
     def generate_modified_responses(self, use_steering: bool,
+                                    output_path: Path,
                                     alpha: float = 0.0,
                                     layer_idx: int = None,
                                     direction: np.ndarray = None) -> list[dict]:
+
+        existing_rows = run_eval.load_jsonl(output_path)
+        completed_idxs = {row["idx"] for row in existing_rows if "idx" in row}
 
         steer_direction = direction if direction is not None else self.steering_direction
 
         if use_steering:
             my_steering_model = steering.ActivationSteer(model=self.model, tokenizer=self.tokenizer,
                                                         layer_idx=layer_idx, direction=steer_direction)
-        results = []
-        for data in self.dataset:
+
+        results = existing_rows.copy()
+
+        for idx, data in enumerate(self.dataset):
+            if idx in completed_idxs:
+                continue
             prompt = data["question"]
             if use_steering:
                 response = my_steering_model.generate(prompt=prompt, alpha=alpha)
             else:
-                inputs = self.tokenizer(prompt, return_tensors="pt").to(self.model.device)
+                messages = [{"role": "user", "content": prompt}]
+                input_ids = self.tokenizer.apply_chat_template(
+                    messages, return_tensors="pt", add_generation_prompt=True
+                ).to(self.model.device)
                 with torch.no_grad():
-                    output = self.model.generate(**inputs, max_new_tokens=300, do_sample=False)
-                response = self.tokenizer.decode(output[0][inputs.input_ids.shape[1]:], skip_special_tokens=True)
+                    output = self.model.generate(input_ids, max_new_tokens=300, do_sample=False)
+                response = self.tokenizer.decode(output[0][input_ids.shape[1]:], skip_special_tokens=True)
 
-            results.append({
+            row = {
+                "idx": idx,
                 "prompt": prompt,
                 "response": response,
                 "answer_matching_behavior": data["answer_matching_behavior"],
                 "answer_not_matching_behavior": data["answer_not_matching_behavior"],
                 "alpha": alpha,
+                "layer_idx": layer_idx,
                 "use_steering": use_steering,
-            })
+            }
+            run_eval.save_jsonl_row(output_path, row)
+            results.append(row)
         return results
