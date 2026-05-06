@@ -38,7 +38,7 @@ This is the key early result: the internal geometry is inconsistent with conflic
 
 ---
 
-## Hypothesis and falsifiability
+## Hypothesis
 
 **Stage 1:** Testing if within the positive-valence cluster, a conflict-avoidance sub-direction is geometrically and functionally separable from warmth. Steering confined to conflict-avoidance shifts the sycophancy–harshness frontier relative to broad positive-valence steering.
 
