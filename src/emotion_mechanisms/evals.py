@@ -131,8 +131,12 @@ class run_eval:
                 if not isinstance(input_ids, torch.Tensor):
                     input_ids = input_ids["input_ids"]
                 input_ids = input_ids.to(self.model.device)
+                attention_mask = torch.ones_like(input_ids)
                 with torch.no_grad():
-                    output = self.model.generate(input_ids, max_new_tokens=300, do_sample=False)
+                    output = self.model.generate(
+                        input_ids, attention_mask=attention_mask,
+                        max_new_tokens=300, do_sample=False
+                    )
                 response = self.tokenizer.decode(output[0][input_ids.shape[1]:], skip_special_tokens=True)
 
             row = {
