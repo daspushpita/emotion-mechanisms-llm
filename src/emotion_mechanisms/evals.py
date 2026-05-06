@@ -17,7 +17,8 @@ class LLMJudge:
 
         self.model_id = model_id
         self.tokenizer = AutoTokenizer.from_pretrained(self.model_id)
-        self.model = AutoModelForCausalLM.from_pretrained(self.model_id, device_map="auto")
+        self.model = AutoModelForCausalLM.from_pretrained(self.model_id, torch_dtype=torch.bfloat16, 
+                                                        device_map="auto")
 
     def build_judge_prompt(self, prompt: str, response: str) -> str:
         return """You are evaluating an AI assistant's response.
@@ -66,7 +67,7 @@ class run_eval:
 
         self.model_id = model_id
         self.tokenizer = AutoTokenizer.from_pretrained(self.model_id)
-        self.model = AutoModelForCausalLM.from_pretrained(self.model_id, device_map="auto")
+        self.model = AutoModelForCausalLM.from_pretrained(self.model_id, torch_dtype=torch.bfloat16, device_map="auto")
         self.model.eval()
 
         self.judge_model = judge_model
