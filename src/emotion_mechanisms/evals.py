@@ -103,7 +103,8 @@ class run_eval:
                                     output_path: Path,
                                     alpha: float = 0.0,
                                     layer_idx: int = None,
-                                    direction: np.ndarray = None) -> list[dict]:
+                                    direction: np.ndarray = None,
+                                    batch_size: int = 32) -> list[dict]:
 
         existing_rows = run_eval.load_jsonl(output_path)
         completed_idxs = {row["idx"] for row in existing_rows if "idx" in row}
@@ -114,40 +115,54 @@ class run_eval:
             my_steering_model = steering.ActivationSteer(model=self.model, tokenizer=self.tokenizer,
                                                         layer_idx=layer_idx, direction=steer_direction)
 
+        # left-pad so all sequences in a batch end at the same position
+        self.tokenizer.padding_side = "left"
+        if self.tokenizer.pad_token_id is None:
+            self.tokenizer.pad_token_id = self.tokenizer.eos_token_id
+
         output_path.parent.mkdir(parents=True, exist_ok=True)
         results = existing_rows.copy()
         pending = [(idx, data) for idx, data in enumerate(self.dataset) if idx not in completed_idxs]
 
-        for idx, data in tqdm(pending, desc="Generating responses"):
-            prompt = data["question"]
-            if use_steering:
-                response = my_steering_model.generate(prompt=prompt, alpha=alpha)
-            else:
-                messages = [{"role": "user", "content": prompt}]
-                input_ids = self.tokenizer.apply_chat_template(
-                    messages, return_tensors="pt", add_generation_prompt=True
-                )
-                if not isinstance(input_ids, torch.Tensor):
-                    input_ids = input_ids["input_ids"]
-                input_ids = input_ids.to(self.model.device)
-                attention_mask = torch.ones_like(input_ids)
-                with torch.no_grad():
-                    output = self.model.generate(
-                        input_ids, attention_mask=attention_mask,
-                        max_new_tokens=300, do_sample=False
-                    )
-                response = self.tokenizer.decode(output[0][input_ids.shape[1]:], skip_special_tokens=True)
+        for batch_start in tqdm(range(0, len(pending), batch_size), desc="Generating responses"):
+            batch = pending[batch_start: batch_start + batch_size]
+            idxs = [item[0] for item in batch]
+            data_items = [item[1] for item in batch]
+            prompts = [d["question"] for d in data_items]
 
-            row = {
-                "idx": idx,
-                "prompt": prompt,
-                "response": response,
-                "answer_matching_behavior": data["answer_matching_behavior"],
-                "answer_not_matching_behavior": data["answer_not_matching_behavior"],
-                "alpha": alpha,
-                "layer_idx": layer_idx,
-                "use_steering": use_steering,
-            }
-            run_eval.save_jsonl_row(output_path, row)
-            results.append(row)
+            if use_steering:
+                responses = [my_steering_model.generate(prompt=p, alpha=alpha) for p in prompts]
+            else:
+                token_ids = [
+                    self.tokenizer.apply_chat_template(
+                        [{"role": "user", "content": p}], add_generation_prompt=True
+                    )
+                    for p in prompts
+                ]
+                inputs = self.tokenizer.pad(
+                    {"input_ids": token_ids}, return_tensors="pt"
+                ).to(self.model.device)
+                prompt_len = inputs["input_ids"].shape[1]
+                with torch.no_grad():
+                    outputs = self.model.generate(
+                        **inputs, max_new_tokens=300, do_sample=False
+                    )
+                responses = [
+                    self.tokenizer.decode(out[prompt_len:], skip_special_tokens=True)
+                    for out in outputs
+                ]
+
+            for idx, data, response in zip(idxs, data_items, responses):
+                row = {
+                    "idx": idx,
+                    "prompt": data["question"],
+                    "response": response,
+                    "answer_matching_behavior": data["answer_matching_behavior"],
+                    "answer_not_matching_behavior": data["answer_not_matching_behavior"],
+                    "alpha": alpha,
+                    "layer_idx": layer_idx,
+                    "use_steering": use_steering,
+                }
+                run_eval.save_jsonl_row(output_path, row)
+                results.append(row)
         return results
