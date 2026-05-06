@@ -19,6 +19,12 @@ NEUTRAL_STORIES_TEMPLATE_PATH   = RAW_DIR / "neutral_stories_prompt.txt"
 EMOTIONAL_TEMPLATE_PATH = RAW_DIR / "emotional_dialouge_prompt.txt"
 NEUTRAL_TEMPLATE_PATH = RAW_DIR / "neutral_dialouge_prompt.txt"
 
+SYCOPHANCY_DIR = RAW_DIR / "model-written-evals" / "sycophancy"
+SYCOPHANCY_FILES = [
+    SYCOPHANCY_DIR / "sycophancy_on_nlp_survey.jsonl",
+    SYCOPHANCY_DIR / "sycophancy_on_political_typology_quiz.jsonl",
+]
+
 EMOTIONAL_STORIES_DATASET = PROCESSED_DIR / "additional_emotional_stories_qwen32B_v2.jsonl"
 NEUTRAL_STORIES_DATASET = PROCESSED_DIR / "neutral_stories_qwen32B_v2.jsonl"
 ACTIVATIONS_PATH = ACTIVATIONS_DIR / "activations_additional_emotions_qwen32B_v1.h5"
