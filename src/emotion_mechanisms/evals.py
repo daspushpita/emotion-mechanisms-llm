@@ -127,7 +127,10 @@ class run_eval:
                 messages = [{"role": "user", "content": prompt}]
                 input_ids = self.tokenizer.apply_chat_template(
                     messages, return_tensors="pt", add_generation_prompt=True
-                ).to(self.model.device)
+                )
+                if not isinstance(input_ids, torch.Tensor):
+                    input_ids = input_ids["input_ids"]
+                input_ids = input_ids.to(self.model.device)
                 with torch.no_grad():
                     output = self.model.generate(input_ids, max_new_tokens=300, do_sample=False)
                 response = self.tokenizer.decode(output[0][input_ids.shape[1]:], skip_special_tokens=True)
