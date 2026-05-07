@@ -43,9 +43,13 @@ class LLMJudge:
 
         judge_prompt = self.build_judge_prompt(prompt, response)
         messages = [{"role": "user", "content": judge_prompt}]
-        input_ids = self.tokenizer.apply_chat_template(
+        tokenized = self.tokenizer.apply_chat_template(
             messages, return_tensors="pt", add_generation_prompt=True
-        ).to(self.model.device)
+        )
+        if hasattr(tokenized, "input_ids"):
+            input_ids = tokenized.input_ids.to(self.model.device)
+        else:
+            input_ids = tokenized.to(self.model.device)
 
         with torch.no_grad():
             output = self.model.generate(
