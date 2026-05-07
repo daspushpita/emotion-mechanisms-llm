@@ -75,8 +75,10 @@ def pilot_steering_sweep(args):
         for alpha in args.alphas:
             print(f"\n🚀 [Layer {layer} | Alpha {alpha}] Running...")
             responses = steer.generate_batch(pilot_prompts, alpha=alpha, max_new_tokens=args.max_tokens)
-            for resp in responses:
-                print(f"  > {resp}")
+            for prompt, resp in zip(pilot_prompts, responses):
+                print(f"  PROMPT: {prompt}")
+                print(f"  RESPONSE: {resp}")
+                print()
                 
 
 
