@@ -150,19 +150,27 @@ class run_eval:
                     rows.append(json.loads(line))
         return rows
 
-    def _plain_generate(self, prompts: list[str], max_new_tokens: int = 300) -> list[str]:
+    def _plain_generate(self, prompts: list[str], max_new_tokens: int = 300, 
+                        system_prompt: str = None) -> list[str]:
         token_ids = []
+        
         for p in prompts:
-            ids = self.tokenizer.apply_chat_template(
-                [{"role": "user", "content": p}], add_generation_prompt=True
-            )
+            messages = []
+            if system_prompt:
+                messages.append({"role": "system", "content": system_prompt})
+            messages.append({"role": "user", "content": p})
+            ids = self.tokenizer.apply_chat_template(messages, add_generation_prompt=True)
+            
             if hasattr(ids, "input_ids"):
                 ids = ids.input_ids
             if hasattr(ids, "tolist"):
                 ids = ids.tolist()
+            
             token_ids.append(ids)
+        
         inputs = self.tokenizer.pad({"input_ids": token_ids}, return_tensors="pt").to(self.model.device)
         prompt_len = inputs["input_ids"].shape[1]
+        
         with torch.no_grad():
             outputs = self.model.generate(**inputs, max_new_tokens=max_new_tokens, do_sample=False)
         return [self.tokenizer.decode(out[prompt_len:], skip_special_tokens=True) for out in outputs]
@@ -172,7 +180,8 @@ class run_eval:
                                     alpha: float = 0.0,
                                     layer_idx: int = None,
                                     direction: np.ndarray = None,
-                                    batch_size: int = 32) -> list[dict]:
+                                    batch_size: int = 32,
+                                    system_prompt: str = None) -> list[dict]:
 
         steer_direction = direction if direction is not None else self.steering_direction
         if use_steering and steer_direction is None:
@@ -182,10 +191,8 @@ class run_eval:
         if self.tokenizer.pad_token_id is None:
             self.tokenizer.pad_token_id = self.tokenizer.eos_token_id
 
-        steerer = (
-            steering.ActivationSteer(self.model, self.tokenizer, layer_idx, steer_direction)
-            if use_steering else None
-        )
+        steerer = (steering.ActivationSteer(self.model, self.tokenizer, 
+                                            layer_idx, steer_direction) if use_steering else None)
 
         existing_rows = run_eval.load_jsonl(output_path)
         completed_indices = {row["idx"] for row in existing_rows if "idx" in row}
@@ -194,27 +201,23 @@ class run_eval:
         pending = [(idx, data) for idx, data in enumerate(self.dataset) if idx not in completed_indices]
 
         for batch_start in tqdm(range(0, len(pending), batch_size), desc="Generating responses"):
-            batch      = pending[batch_start: batch_start + batch_size]
-            indices       = [item[0] for item in batch]
+            batch  = pending[batch_start: batch_start + batch_size]
+            indices = [item[0] for item in batch]
             data_items = [item[1] for item in batch]
-            prompts    = [d["question"] for d in data_items]
+            prompts = [d["question"] for d in data_items]
 
-            responses = (
-                steerer.generate_batch(prompts, alpha=alpha)
-                if steerer else self._plain_generate(prompts)
-            )
+            responses = (steerer.generate_batch(prompts, alpha=alpha)
+                        if steerer else self._plain_generate(prompts, system_prompt=system_prompt))
 
             for idx, data, response in zip(indices, data_items, responses):
-                row = {
-                    "idx": idx,
+                row = {"idx": idx,
                     "prompt": data["question"],
                     "response": response,
                     "answer_matching_behavior": data["answer_matching_behavior"],
                     "answer_not_matching_behavior": data["answer_not_matching_behavior"],
                     "alpha": alpha,
                     "layer_idx": layer_idx,
-                    "use_steering": use_steering,
-                }
+                    "use_steering": use_steering}
                 run_eval.save_jsonl_row(output_path, row)
                 results.append(row)
         return results
