@@ -12,7 +12,7 @@ class ActivationSteer:
         self.direction = torch.tensor(direction, dtype=torch.float32)
         
     def _make_hook(self):
-        def hook_fn(module, input, output):
+        def hook_fn(_module, _input, output):
             hidden_vector = output[0] if isinstance(output, tuple) else output
             steering_direction = self.direction.to(hidden_vector.device)
             hidden_vector = hidden_vector + self._alpha * steering_direction
@@ -26,7 +26,7 @@ class ActivationSteer:
         self._alpha = alpha
         #Attach the hook
         target_layer = self.model.model.layers[self.layer_idx]
-        hook_handle = target_layer.register_forward_hook(self._make_hook)
+        hook_handle = target_layer.register_forward_hook(self._make_hook())
         
         try:
             inputs = self.tokenizer(prompt, return_tensors="pt").to(self.model.device)
