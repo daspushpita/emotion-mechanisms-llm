@@ -18,7 +18,10 @@ class LLMJudge:
 
         self.model_id = model_id
         self.tokenizer = AutoTokenizer.from_pretrained(self.model_id)
-        self.model = AutoModelForCausalLM.from_pretrained(self.model_id, torch_dtype=torch.bfloat16, 
+        if self.tokenizer.pad_token_id is None:
+            self.tokenizer.pad_token_id = self.tokenizer.eos_token_id
+        self.tokenizer.padding_side = "left"
+        self.model = AutoModelForCausalLM.from_pretrained(self.model_id, torch_dtype=torch.bfloat16,
                                                         device_map="auto")
 
     def build_judge_prompt(self, prompt: str, response: str) -> str:
@@ -63,6 +66,44 @@ class LLMJudge:
 
         output_text = self.tokenizer.decode(output[0][input_ids.shape[1]:], skip_special_tokens=True)
         return output_text.strip()
+
+    def judge_batch(self, prompts: list[str], responses: list[str],
+                    max_new_tokens: int = 120, batch_size: int = 16) -> list[str]:
+        results = []
+        for i in tqdm(range(0, len(prompts), batch_size), desc="Judging"):
+            batch_prompts   = prompts[i : i + batch_size]
+            batch_responses = responses[i : i + batch_size]
+
+            token_ids = []
+            for p, r in zip(batch_prompts, batch_responses):
+                judge_prompt = self.build_judge_prompt(p, r)
+                ids = self.tokenizer.apply_chat_template(
+                    [{"role": "user", "content": judge_prompt}],
+                    add_generation_prompt=True,
+                )
+                if hasattr(ids, "input_ids"):
+                    ids = ids.input_ids
+                if hasattr(ids, "tolist"):
+                    ids = ids.tolist()
+                token_ids.append(ids)
+
+            inputs = self.tokenizer.pad(
+                {"input_ids": token_ids}, return_tensors="pt"
+            ).to(self.model.device)
+            prompt_len = inputs["input_ids"].shape[1]
+
+            with torch.no_grad():
+                outputs = self.model.generate(
+                    **inputs,
+                    max_new_tokens=max_new_tokens,
+                    do_sample=False,
+                )
+
+            for out in outputs:
+                text = self.tokenizer.decode(out[prompt_len:], skip_special_tokens=True)
+                results.append(text.strip())
+
+        return results
 
 
 class run_eval:
@@ -142,8 +183,10 @@ class run_eval:
                     ids = self.tokenizer.apply_chat_template(
                         [{"role": "user", "content": p}], add_generation_prompt=True
                     )
-                    if not isinstance(ids, list):
-                        ids = ids["input_ids"]
+                    if hasattr(ids, "input_ids"):
+                        ids = ids.input_ids
+                    if hasattr(ids, "tolist"):
+                        ids = ids.tolist()
                     token_ids.append(ids)
                 inputs = self.tokenizer.pad(
                     {"input_ids": token_ids}, return_tensors="pt"
