@@ -5,6 +5,11 @@ import argparse
 from pathlib import Path
 import numpy as np
 
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+SRC_DIR = PROJECT_ROOT / "src"
+if str(SRC_DIR) not in sys.path:
+    sys.path.insert(0, str(SRC_DIR))
+    
 import emotion_mechanisms.steering as steering
 import emotion_mechanisms.evals as eval
 importlib.reload(steering)
