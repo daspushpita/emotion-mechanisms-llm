@@ -21,7 +21,7 @@ class LLMJudge:
         if self.tokenizer.pad_token_id is None:
             self.tokenizer.pad_token_id = self.tokenizer.eos_token_id
         self.tokenizer.padding_side = "left"
-        self.model = AutoModelForCausalLM.from_pretrained(self.model_id, torch_dtype=torch.bfloat16,
+        self.model = AutoModelForCausalLM.from_pretrained(self.model_id, dtype=torch.bfloat16,
                                                         device_map="auto")
 
     def build_judge_prompt(self, prompt: str, response: str) -> str:
@@ -113,7 +113,7 @@ class run_eval:
 
         self.model_id = model_id
         self.tokenizer = AutoTokenizer.from_pretrained(self.model_id)
-        self.model = AutoModelForCausalLM.from_pretrained(self.model_id, torch_dtype=torch.bfloat16, device_map="auto")
+        self.model = AutoModelForCausalLM.from_pretrained(self.model_id, dtype=torch.bfloat16, device_map="auto")
         self.model.eval()
 
         self.judge_model = judge_model
@@ -125,16 +125,18 @@ class run_eval:
         self.steering_direction = np.load(steering_direction_path)
 
         self.dataset = self.load_jsonl(self.file1_path)
-        if file2_path is not None and file2_path.exists():
+        if file2_path is not None and Path(file2_path).exists():
             self.dataset.extend(self.load_jsonl(self.file2_path))
 
     @staticmethod
     def save_jsonl_row(path: Path, row: dict):
+        path = Path(path)
         with path.open("a", encoding="utf-8") as fout:
             fout.write(json.dumps(row) + "\n")
 
     @staticmethod
     def load_jsonl(path: Path) -> list[dict]:
+        path = Path(path)
         if not path.exists():
             return []
         rows = []
