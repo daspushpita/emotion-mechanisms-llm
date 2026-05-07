@@ -14,7 +14,7 @@ class ActivationSteer:
     def _make_hook(self):
         def hook_fn(_module, _input, output):
             hidden_vector = output[0] if isinstance(output, tuple) else output
-            steering_direction = self.direction.to(hidden_vector.device)
+            steering_direction = self.direction.to(hidden_vector.device, dtype=hidden_vector.dtype)
             hidden_vector = hidden_vector + self._alpha * steering_direction
             return (hidden_vector,) + output[1:] if isinstance(output, tuple) else hidden_vector
         
