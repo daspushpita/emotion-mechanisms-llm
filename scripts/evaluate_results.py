@@ -108,9 +108,31 @@ def main():
         vec = load_vec(conflict_dir, emotion)
         print(f"{emotion:<23}  {cos(vec, pure_compliance):>+18.4f}")
 
-    # save
-    out_path = data_path / "steering_direction_compliance.npy"
-    np.save(out_path, compliance_mean)
+    # save compliance direction
+    np.save(data_path / "steering_direction_compliance.npy", compliance_mean)
+    print(f"saved -> {data_path / 'steering_direction_compliance.npy'}")
+
+    # ── Positive valence direction ────────────────────────────────
+    _section("POSITIVE VALENCE DIRECTION")
+    valence_dir = normalize(positive_mean - negative_mean)
+
+    print(f"valence_dir vs positive_mean : {cos(valence_dir, positive_mean):+.4f}")
+    print(f"valence_dir vs negative_mean : {cos(valence_dir, negative_mean):+.4f}")
+    print(f"valence_dir vs compliance    : {cos(valence_dir, compliance_mean):+.4f}")
+    print(f"valence_dir vs distress      : {cos(valence_dir, distress_mean):+.4f}")
+
+    print(f"\n  {'emotion':<23}  {'vs valence_dir':>14}")
+    print(f"  {'-'*23}  {'-'*14}")
+    for e in positive_emotions:
+        print(f"  {e:<23}  {cos(load_vec(core_dir, e), valence_dir):>+14.4f}")
+    for e in negative_emotions:
+        print(f"  {e:<23}  {cos(load_vec(core_dir, e), valence_dir):>+14.4f}")
+
+    np.save(data_path / "steering_direction_positive_valence.npy", valence_dir)
+    print(f"\nsaved -> {data_path / 'steering_direction_positive_valence.npy'}")
+
+    np.save(data_path / "steering_direction_pure_compliance.npy", pure_compliance)
+    print(f"saved -> {data_path / 'steering_direction_pure_compliance.npy'}")
 
 
 if __name__ == "__main__":

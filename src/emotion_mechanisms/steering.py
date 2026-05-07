@@ -24,7 +24,7 @@ class ActivationSteer:
         return self.generate_batch([prompt], alpha=alpha, max_new_tokens=max_new_tokens)[0]
 
     def generate_batch(self, prompts: list[str], alpha: float,
-                       max_new_tokens: int = 300, batch_size: int = 32) -> list[str]:
+                        max_new_tokens: int = 300, batch_size: int = 32) -> list[str]:
         results = []
         for i in range(0, len(prompts), batch_size):
             results.extend(self._generate_chunk(prompts[i : i + batch_size], alpha, max_new_tokens))

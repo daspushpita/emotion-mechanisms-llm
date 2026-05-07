@@ -108,8 +108,9 @@ class LLMJudge:
 
 class run_eval:
     def __init__(self,
-                model_id, judge_model, steering_direction_path: Path,
-                file1_path: Path, file2_path: Path = None):
+                model_id, judge_model,
+                file1_path: Path, file2_path: Path = None,
+                steering_direction_path: Path = None):
 
         self.model_id = model_id
         self.tokenizer = AutoTokenizer.from_pretrained(self.model_id)
@@ -120,9 +121,12 @@ class run_eval:
         self.file1_path = file1_path
         self.file2_path = file2_path
 
-        if not Path(steering_direction_path).exists():
-            raise FileNotFoundError(f"Steering direction not found: {steering_direction_path}")
-        self.steering_direction = np.load(steering_direction_path)
+        if steering_direction_path is not None:
+            if not Path(steering_direction_path).exists():
+                raise FileNotFoundError(f"Steering direction not found: {steering_direction_path}")
+            self.steering_direction = np.load(steering_direction_path)
+        else:
+            self.steering_direction = None
 
         self.dataset = self.load_jsonl(self.file1_path)
         if file2_path is not None and Path(file2_path).exists():
@@ -146,6 +150,23 @@ class run_eval:
                     rows.append(json.loads(line))
         return rows
 
+    def _plain_generate(self, prompts: list[str], max_new_tokens: int = 300) -> list[str]:
+        token_ids = []
+        for p in prompts:
+            ids = self.tokenizer.apply_chat_template(
+                [{"role": "user", "content": p}], add_generation_prompt=True
+            )
+            if hasattr(ids, "input_ids"):
+                ids = ids.input_ids
+            if hasattr(ids, "tolist"):
+                ids = ids.tolist()
+            token_ids.append(ids)
+        inputs = self.tokenizer.pad({"input_ids": token_ids}, return_tensors="pt").to(self.model.device)
+        prompt_len = inputs["input_ids"].shape[1]
+        with torch.no_grad():
+            outputs = self.model.generate(**inputs, max_new_tokens=max_new_tokens, do_sample=False)
+        return [self.tokenizer.decode(out[prompt_len:], skip_special_tokens=True) for out in outputs]
+
     def generate_modified_responses(self, use_steering: bool,
                                     output_path: Path,
                                     alpha: float = 0.0,
@@ -153,57 +174,37 @@ class run_eval:
                                     direction: np.ndarray = None,
                                     batch_size: int = 32) -> list[dict]:
 
-        existing_rows = run_eval.load_jsonl(output_path)
-        completed_idxs = {row["idx"] for row in existing_rows if "idx" in row}
-
         steer_direction = direction if direction is not None else self.steering_direction
+        if use_steering and steer_direction is None:
+            raise ValueError("use_steering=True but no steering direction was provided")
 
-        if use_steering:
-            my_steering_model = steering.ActivationSteer(model=self.model, tokenizer=self.tokenizer,
-                                                        layer_idx=layer_idx, direction=steer_direction)
-
-        # left-pad so all sequences in a batch end at the same position
         self.tokenizer.padding_side = "left"
         if self.tokenizer.pad_token_id is None:
             self.tokenizer.pad_token_id = self.tokenizer.eos_token_id
 
+        steerer = (
+            steering.ActivationSteer(self.model, self.tokenizer, layer_idx, steer_direction)
+            if use_steering else None
+        )
+
+        existing_rows = run_eval.load_jsonl(output_path)
+        completed_indices = {row["idx"] for row in existing_rows if "idx" in row}
         output_path.parent.mkdir(parents=True, exist_ok=True)
         results = existing_rows.copy()
-        pending = [(idx, data) for idx, data in enumerate(self.dataset) if idx not in completed_idxs]
+        pending = [(idx, data) for idx, data in enumerate(self.dataset) if idx not in completed_indices]
 
         for batch_start in tqdm(range(0, len(pending), batch_size), desc="Generating responses"):
-            batch = pending[batch_start: batch_start + batch_size]
-            idxs = [item[0] for item in batch]
+            batch      = pending[batch_start: batch_start + batch_size]
+            indices       = [item[0] for item in batch]
             data_items = [item[1] for item in batch]
-            prompts = [d["question"] for d in data_items]
+            prompts    = [d["question"] for d in data_items]
 
-            if use_steering:
-                responses = my_steering_model.generate_batch(prompts, alpha=alpha)
-            else:
-                token_ids = []
-                for p in prompts:
-                    ids = self.tokenizer.apply_chat_template(
-                        [{"role": "user", "content": p}], add_generation_prompt=True
-                    )
-                    if hasattr(ids, "input_ids"):
-                        ids = ids.input_ids
-                    if hasattr(ids, "tolist"):
-                        ids = ids.tolist()
-                    token_ids.append(ids)
-                inputs = self.tokenizer.pad(
-                    {"input_ids": token_ids}, return_tensors="pt"
-                ).to(self.model.device)
-                prompt_len = inputs["input_ids"].shape[1]
-                with torch.no_grad():
-                    outputs = self.model.generate(
-                        **inputs, max_new_tokens=300, do_sample=False
-                    )
-                responses = [
-                    self.tokenizer.decode(out[prompt_len:], skip_special_tokens=True)
-                    for out in outputs
-                ]
+            responses = (
+                steerer.generate_batch(prompts, alpha=alpha)
+                if steerer else self._plain_generate(prompts)
+            )
 
-            for idx, data, response in zip(idxs, data_items, responses):
+            for idx, data, response in zip(indices, data_items, responses):
                 row = {
                     "idx": idx,
                     "prompt": data["question"],
