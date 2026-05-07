@@ -1,8 +1,8 @@
-import sys, os
+import sys
 import numpy as np
 import torch
 import json
-from transformers import AutoTokenizer, AutoModelForCausalLM, BitsAndBytesConfig
+from transformers import AutoTokenizer, AutoModelForCausalLM
 from pathlib import Path
 from tqdm.auto import tqdm
 
@@ -176,7 +176,7 @@ class run_eval:
             prompts = [d["question"] for d in data_items]
 
             if use_steering:
-                responses = [my_steering_model.generate(prompt=p, alpha=alpha) for p in prompts]
+                responses = my_steering_model.generate_batch(prompts, alpha=alpha)
             else:
                 token_ids = []
                 for p in prompts:
