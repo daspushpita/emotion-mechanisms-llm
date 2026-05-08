@@ -2,22 +2,24 @@ import numpy as np
 import torch
 
 class ActivationSteer:
-    def __init__(self, model, tokenizer, 
-                layer_idx: int, 
-                direction: np.ndarray):
+    def __init__(self, model, tokenizer,
+                layer_idx: int,
+                direction: np.ndarray,
+                residual_norm: float = 1.0):
         self.model = model
         self.tokenizer = tokenizer
         self.layer_idx = layer_idx
         self._alpha = 0.0
+        self.residual_norm = residual_norm
         self.direction = torch.tensor(direction, dtype=torch.float32)
-        
+
     def _make_hook(self):
         def hook_fn(_module, _input, output):
             hidden_vector = output[0] if isinstance(output, tuple) else output
             steering_direction = self.direction.to(hidden_vector.device, dtype=hidden_vector.dtype)
-            hidden_vector = hidden_vector + self._alpha * steering_direction
+            hidden_vector = hidden_vector + self._alpha * self.residual_norm * steering_direction
             return (hidden_vector,) + output[1:] if isinstance(output, tuple) else hidden_vector
-        
+
         return hook_fn
 
     def generate(self, prompt: str, alpha: float, max_new_tokens: int = 300) -> str:

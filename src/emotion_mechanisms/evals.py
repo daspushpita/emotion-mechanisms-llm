@@ -181,7 +181,8 @@ class run_eval:
                                     layer_idx: int = None,
                                     direction: np.ndarray = None,
                                     batch_size: int = 32,
-                                    system_prompt: str = None) -> list[dict]:
+                                    system_prompt: str = None,
+                                    residual_norm: float = 1.0) -> list[dict]:
 
         steer_direction = direction if direction is not None else self.steering_direction
         if use_steering and steer_direction is None:
@@ -191,8 +192,9 @@ class run_eval:
         if self.tokenizer.pad_token_id is None:
             self.tokenizer.pad_token_id = self.tokenizer.eos_token_id
 
-        steerer = (steering.ActivationSteer(self.model, self.tokenizer, 
-                                            layer_idx, steer_direction) if use_steering else None)
+        steerer = (steering.ActivationSteer(self.model, self.tokenizer,
+                                            layer_idx, steer_direction,
+                                            residual_norm=residual_norm) if use_steering else None)
 
         existing_rows = run_eval.load_jsonl(output_path)
         completed_indices = {row["idx"] for row in existing_rows if "idx" in row}

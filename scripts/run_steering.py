@@ -2,6 +2,7 @@
 import os, sys
 import importlib
 import argparse
+import json
 from pathlib import Path
 import numpy as np
 
@@ -39,11 +40,22 @@ def get_args():
     parser.add_argument("--analysis_model", type=str, required=True, help="ID of the model being steered")
     parser.add_argument("--judge_model", type=str, default="gpt-4o", help="Model used for evaluation")
     parser.add_argument("--steering_path", type=str, required=True, help="Path to .npy direction")
+    parser.add_argument("--residual_norms_path", type=str, default=None,
+                        help="Path to residual_norms_32b.json produced by compute_residual_norms.py")
     parser.add_argument("--file1", type=str, required=True, help="Path to dataset file 1")
     parser.add_argument("--file2", type=str, required=True, help="Path to dataset file 2")
 
     args = parser.parse_args()
     return args
+
+
+def load_residual_norms(path: str | None) -> dict:
+    if path is None:
+        return {}
+    with open(path) as f:
+        raw = json.load(f)
+    # JSON keys are strings; normalise to int keys
+    return {int(k): v for k, v in raw.items()}
 
 def sample_balanced(file1, file2, n):
     half = n // 2
@@ -64,16 +76,19 @@ def pilot_steering_sweep(args):
     # 2. Get your prompt subset — balanced across both files
     pilot_prompts = [d["question"] for d in sample_balanced(args.file1, args.file2, args.n_samples)]
     direction = np.load(args.steering_path)
+    norms = load_residual_norms(args.residual_norms_path)
 
     # 3. The Nested Sweep
     for layer in args.layers:
+        residual_norm = norms.get(layer, 1.0)
         steer = eval.steering.ActivationSteer(model=pilot_eval.model,
                                             tokenizer=pilot_eval.tokenizer,
                                             layer_idx=layer,
-                                            direction=direction)
+                                            direction=direction,
+                                            residual_norm=residual_norm)
 
         for alpha in args.alphas:
-            print(f"\n🚀 [Layer {layer} | Alpha {alpha}] Running...")
+            print(f"\n[Layer {layer} | Alpha {alpha} | residual_norm {residual_norm:.2f}] Running...")
             responses = steer.generate_batch(pilot_prompts, alpha=alpha, max_new_tokens=args.max_tokens)
             for prompt, resp in zip(pilot_prompts, responses):
                 print(f"  PROMPT: {prompt}")
@@ -95,15 +110,19 @@ def steering_run(args):
     # 2. Replace dataset with balanced subset so generate_modified_responses uses it
     run.dataset = sample_balanced(args.file1, args.file2, args.n_samples)
 
+    norms = load_residual_norms(args.residual_norms_path)
+    residual_norm = norms.get(args.final_layer, 1.0)
+
     out_path = Path(args.output_dir) / f"steered_L{args.final_layer}_a{args.final_alpha}.jsonl"
-    print(f"\n🚀 [Layer {args.final_layer} | Alpha {args.final_alpha}] -> {out_path}")
-    
+    print(f"\n🚀 [Layer {args.final_layer} | Alpha {args.final_alpha} | residual_norm {residual_norm:.2f}] -> {out_path}")
+
     rows = run.generate_modified_responses(use_steering=True,
                                             output_path=out_path,
                                             alpha=args.final_alpha,
                                             layer_idx=args.final_layer,
-                                            batch_size=args.batch_size)
-    
+                                            batch_size=args.batch_size,
+                                            residual_norm=residual_norm)
+
     print(f"{len(rows)} rows saved.")
 
 
