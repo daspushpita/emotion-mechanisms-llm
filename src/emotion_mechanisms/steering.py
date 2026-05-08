@@ -24,13 +24,15 @@ class ActivationSteer:
         return self.generate_batch([prompt], alpha=alpha, max_new_tokens=max_new_tokens)[0]
 
     def generate_batch(self, prompts: list[str], alpha: float,
-                        max_new_tokens: int = 300, batch_size: int = 32) -> list[str]:
+                        max_new_tokens: int = 300, batch_size: int = 32,
+                        system_prompt: str = None) -> list[str]:
         results = []
         for i in range(0, len(prompts), batch_size):
-            results.extend(self._generate_chunk(prompts[i : i + batch_size], alpha, max_new_tokens))
+            results.extend(self._generate_chunk(prompts[i : i + batch_size], alpha, max_new_tokens, system_prompt))
         return results
 
-    def _generate_chunk(self, prompts: list[str], alpha: float, max_new_tokens: int) -> list[str]:
+    def _generate_chunk(self, prompts: list[str], alpha: float, max_new_tokens: int,
+                        system_prompt: str = None) -> list[str]:
         self._alpha = alpha
         target_layer = self.model.model.layers[self.layer_idx]
         hook_handle = target_layer.register_forward_hook(self._make_hook())
@@ -42,7 +44,11 @@ class ActivationSteer:
 
             token_ids = []
             for p in prompts:
-                ids = self.tokenizer.apply_chat_template([{"role": "user", "content": p}], add_generation_prompt=True)
+                messages = []
+                if system_prompt:
+                    messages.append({"role": "system", "content": system_prompt})
+                messages.append({"role": "user", "content": p})
+                ids = self.tokenizer.apply_chat_template(messages, add_generation_prompt=True)
                 if hasattr(ids, "input_ids"):
                     ids = ids.input_ids
                 if hasattr(ids, "tolist"):

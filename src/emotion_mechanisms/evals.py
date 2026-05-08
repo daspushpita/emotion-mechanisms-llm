@@ -206,7 +206,7 @@ class run_eval:
             data_items = [item[1] for item in batch]
             prompts = [d["question"] for d in data_items]
 
-            responses = (steerer.generate_batch(prompts, alpha=alpha)
+            responses = (steerer.generate_batch(prompts, alpha=alpha, system_prompt=system_prompt)
                         if steerer else self._plain_generate(prompts, system_prompt=system_prompt))
 
             for idx, data, response in zip(indices, data_items, responses):
