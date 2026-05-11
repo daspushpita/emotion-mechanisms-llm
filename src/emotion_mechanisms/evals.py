@@ -169,15 +169,17 @@ class LLMJudge:
             ).to(self.model.device)
             prompt_len = inputs["input_ids"].shape[1]
 
+            generate_kwargs = dict(
+                max_new_tokens=max_new_tokens,
+                do_sample=do_sample,
+                repetition_penalty=repetition_penalty,
+            )
+            if do_sample:
+                generate_kwargs["temperature"] = temperature
+                generate_kwargs["top_p"] = top_p
+
             with torch.no_grad():
-                outputs = self.model.generate(
-                    **inputs,
-                    max_new_tokens=max_new_tokens,
-                    do_sample=do_sample,
-                    temperature=temperature,
-                    top_p=top_p,
-                    repetition_penalty=repetition_penalty,
-                )
+                outputs = self.model.generate(**inputs, **generate_kwargs)
 
             for out in outputs:
                 text = self.tokenizer.decode(out[prompt_len:], skip_special_tokens=True)
