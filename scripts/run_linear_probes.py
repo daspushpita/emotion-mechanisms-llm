@@ -16,7 +16,7 @@ import emotion_mechanisms.vectors as vectors
 
 base_activations_path = Path("/Users/pushpita/Documents/ML_Projects/AI_Safety/emotion-mechanisms-llm/results/baseline/all_layers/activations_32b.h5")
 additional_activations_path = Path("/Users/pushpita/Documents/ML_Projects/AI_Safety/emotion-mechanisms-llm/results/baseline/all_layers/activations_additionalemotions_32b.h5")
-probes_dir = Path("/Users/pushpita/Documents/ML_Projects/AI_Safety/emotion-mechanisms-llm/results/probes/all_layers")
+probes_dir = Path("/Users/pushpita/Documents/ML_Projects/AI_Safety/emotion-mechanisms-llm/results/probes/all_layers/v2")
 probes_dir.mkdir(parents=True, exist_ok=True)
 
 layer_indices = list(range(64))
@@ -33,14 +33,15 @@ print(f"Best layer metrics: {base_metrics[best_layer]}")
 
 base_emotion_vectors.save_metrics(base_metrics, best_layer, root=probes_dir)
 
-mean_diff_dirs = base_emotion_vectors.mean_diff(best_layer)
-base_emotion_vectors.save_vectors(mean_diff_dirs, subdir="mean_diff", root=probes_dir)
+for layer in layer_indices:
+    base_emotion_vectors.save_vectors(base_emotion_vectors.mean_diff(layer),        subdir=f"layer_{layer}/mean_diff",    root=probes_dir)
+    base_emotion_vectors.save_vectors(base_emotion_vectors.probe_directions(layer),  subdir=f"layer_{layer}/probe",        root=probes_dir)
+    base_emotion_vectors.save_vectors(base_emotion_vectors.pca_denoise(layer),       subdir=f"layer_{layer}/pca_denoised", root=probes_dir)
 
-probe_dirs = base_emotion_vectors.probe_directions(best_layer)
-base_emotion_vectors.save_vectors(probe_dirs, subdir="probe", root=probes_dir)
-
-pca_dirs = base_emotion_vectors.pca_denoise(best_layer)
-base_emotion_vectors.save_vectors(pca_dirs, subdir="pca_denoised", root=probes_dir)
+best_link = probes_dir / "best_layer"
+best_link.unlink(missing_ok=True)
+best_link.symlink_to(probes_dir / f"layer_{best_layer}", target_is_directory=True)
+print(f"Saved base vectors for all {len(layer_indices)} layers. Best layer symlink -> layer_{best_layer}")
 
 
 # --- Additional (conflict-avoidance) emotions ---
@@ -59,8 +60,14 @@ print(f"Best layer metrics (additional): {additional_metrics[additional_best_lay
 
 additional_emotion_vectors.save_metrics(additional_metrics, additional_best_layer, root=additional_probes_dir)
 
-additional_emotion_vectors.save_vectors(additional_emotion_vectors.mean_diff(additional_best_layer),        subdir="mean_diff",    root=additional_probes_dir)
-additional_emotion_vectors.save_vectors(additional_emotion_vectors.probe_directions(additional_best_layer), subdir="probe",        root=additional_probes_dir)
-additional_emotion_vectors.save_vectors(additional_emotion_vectors.pca_denoise(additional_best_layer),      subdir="pca_denoised", root=additional_probes_dir)
+for layer in layer_indices:
+    additional_emotion_vectors.save_vectors(additional_emotion_vectors.mean_diff(layer),        subdir=f"layer_{layer}/mean_diff",    root=additional_probes_dir)
+    additional_emotion_vectors.save_vectors(additional_emotion_vectors.probe_directions(layer),  subdir=f"layer_{layer}/probe",        root=additional_probes_dir)
+    additional_emotion_vectors.save_vectors(additional_emotion_vectors.pca_denoise(layer),       subdir=f"layer_{layer}/pca_denoised", root=additional_probes_dir)
+
+additional_best_link = additional_probes_dir / "best_layer"
+additional_best_link.unlink(missing_ok=True)
+additional_best_link.symlink_to(additional_probes_dir / f"layer_{additional_best_layer}", target_is_directory=True)
+print(f"Saved additional vectors for all {len(layer_indices)} layers. Best layer symlink -> layer_{additional_best_layer}")
 
 

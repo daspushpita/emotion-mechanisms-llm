@@ -187,14 +187,21 @@ def main(activations_path: Path = cfg.ACTIVATIONS_PATH,
 
     extractor.save_metrics(all_metrics, best_layer)
 
-    mean_diff_dirs = extractor.mean_diff(best_layer)
-    extractor.save_vectors(mean_diff_dirs, subdir="mean_diff")
+    for layer in sweep_layers:
+        mean_diff_dirs = extractor.mean_diff(layer)
+        extractor.save_vectors(mean_diff_dirs, subdir=f"layer_{layer}/mean_diff")
 
-    probe_dirs = extractor.probe_directions(best_layer)
-    extractor.save_vectors(probe_dirs, subdir="probe")
+        probe_dirs = extractor.probe_directions(layer)
+        extractor.save_vectors(probe_dirs, subdir=f"layer_{layer}/probe")
 
-    pca_dirs = extractor.pca_denoise(best_layer)
-    extractor.save_vectors(pca_dirs, subdir="pca_denoised")
+        pca_dirs = extractor.pca_denoise(layer)
+        extractor.save_vectors(pca_dirs, subdir=f"layer_{layer}/pca_denoised")
+
+    # convenience symlink: "best_layer" points at the winning layer's subdir
+    best_link = PROBES_DIR / "best_layer"
+    best_link.unlink(missing_ok=True)
+    best_link.symlink_to(PROBES_DIR / f"layer_{best_layer}", target_is_directory=True)
+    print(f"Saved vectors for all {len(sweep_layers)} layers. Best layer symlink -> layer_{best_layer}")
 
 
 if __name__ == "__main__":
