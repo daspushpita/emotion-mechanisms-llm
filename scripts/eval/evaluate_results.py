@@ -22,12 +22,14 @@ distress_emotions = [
 ]
 conflict_avoidance_all = compliance_emotions + distress_emotions
 
+LAYER = 48
+
 data_path = PROJECT_ROOT / "results" / "probes"
 
-core_dir = data_path  / "all_layers" / "layer_32" / "pca_denoised"
-conflict_dir = data_path / "all_layers_additional" / "layer_32" / "pca_denoised"
+core_dir     = data_path / "all_layers" / f"layer_{LAYER}" / "pca_denoised"
+conflict_dir = data_path / "all_layers_additional" / f"layer_{LAYER}" / "pca_denoised"
 
-result_path = PROJECT_ROOT / "results" / "final_steering"
+result_path = PROJECT_ROOT / "results" / "cluster_data"
 
 def normalize(v, eps=1.e-8):
     return v / (np.linalg.norm(v) + eps)
@@ -47,7 +49,8 @@ def _section(title):
     print('='*60)
     
 def main():
-    result_path.mkdir(parents=True, exist_ok=True)
+    layer_dir = result_path / f"layer_{LAYER}"
+    layer_dir.mkdir(parents=True, exist_ok=True)
 
     # ── Load valence means ────────────────────────────────────────
     positive_mean = normalize(np.stack([load_vec(core_dir, e) for e in positive_emotions]).mean(axis=0))
@@ -113,8 +116,8 @@ def main():
         print(f"{emotion:<23}  {cos(vec, pure_compliance):>+18.4f}")
 
     # save compliance direction
-    np.save(result_path / "steering_direction_compliance.npy", compliance_mean)
-    print(f"saved -> {result_path / 'steering_direction_compliance.npy'}")
+    np.save(layer_dir / "steering_direction_compliance.npy", compliance_mean)
+    print(f"saved -> {layer_dir / 'steering_direction_compliance.npy'}")
 
     # ── Positive valence direction ────────────────────────────────
     _section("POSITIVE VALENCE DIRECTION")
@@ -132,11 +135,11 @@ def main():
     for e in negative_emotions:
         print(f"  {e:<23}  {cos(load_vec(core_dir, e), valence_dir):>+14.4f}")
 
-    np.save(result_path / "steering_direction_positive_valence.npy", valence_dir)
-    print(f"\nsaved -> {result_path / 'steering_direction_positive_valence.npy'}")
+    np.save(layer_dir / "steering_direction_positive_valence.npy", valence_dir)
+    print(f"\nsaved -> {layer_dir / 'steering_direction_positive_valence.npy'}")
 
-    np.save(result_path / "steering_direction_pure_compliance.npy", pure_compliance)
-    print(f"saved -> {result_path / 'steering_direction_pure_compliance.npy'}")
+    np.save(layer_dir / "steering_direction_pure_compliance.npy", pure_compliance)
+    print(f"saved -> {layer_dir / 'steering_direction_pure_compliance.npy'}")
 
 
 if __name__ == "__main__":

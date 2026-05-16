@@ -49,8 +49,10 @@ class ActivationSteer:
                 messages = []
                 if system_prompt:
                     messages.append({"role": "system", "content": system_prompt})
+                    
                 messages.append({"role": "user", "content": p})
                 ids = self.tokenizer.apply_chat_template(messages, add_generation_prompt=True)
+                
                 if hasattr(ids, "input_ids"):
                     ids = ids.input_ids
                 if hasattr(ids, "tolist"):
@@ -62,6 +64,35 @@ class ActivationSteer:
 
             with torch.no_grad():
                 outputs = self.model.generate(**inputs, max_new_tokens=max_new_tokens, do_sample=False)
+            return [self.tokenizer.decode(out[prompt_len:], skip_special_tokens=True) for out in outputs]
+        finally:
+            hook_handle.remove()
+    def generate_from_messages(self, messages_list: list[list[dict]], alpha: float, 
+                            max_new_tokens: int = 300) -> str:
+        self._alpha = alpha
+        target_layer = self.model.model.layers[self.layer_idx]
+        hook_handle = target_layer.register_forward_hook(self._make_hook())
+        
+        try:
+            self.tokenizer.padding_side = "left"
+            if self.tokenizer.pad_token_id is None:
+                self.tokenizer.pad_token_id = self.tokenizer.eos_token_id
+                
+            token_ids = []
+            for messages in messages_list:
+                ids = self.tokenizer.apply_chat_template(messages, add_generation_prompt=True)
+                if hasattr(ids, "input_ids"):
+                    ids = ids.input_ids
+                if hasattr(ids, "tolist"):
+                    ids = ids.tolist()
+                token_ids.append(ids)
+                
+            inputs = self.tokenizer.pad({"input_ids": token_ids}, return_tensors="pt").to(self.model.device)
+            prompt_len = inputs["input_ids"].shape[1]
+            
+            with torch.no_grad():
+                outputs = self.model.generate(**inputs, max_new_tokens=max_new_tokens,
+                                            do_sample=False)
             return [self.tokenizer.decode(out[prompt_len:], skip_special_tokens=True) for out in outputs]
         finally:
             hook_handle.remove()

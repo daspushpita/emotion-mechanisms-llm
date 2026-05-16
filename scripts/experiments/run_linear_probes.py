@@ -16,7 +16,7 @@ import emotion_mechanisms.vectors as vectors
 
 base_activations_path = Path("/Users/pushpita/Documents/ML_Projects/AI_Safety/emotion-mechanisms-llm/results/baseline/all_layers/activations_32b.h5")
 additional_activations_path = Path("/Users/pushpita/Documents/ML_Projects/AI_Safety/emotion-mechanisms-llm/results/baseline/all_layers/activations_additionalemotions_32b.h5")
-probes_dir = Path("/Users/pushpita/Documents/ML_Projects/AI_Safety/emotion-mechanisms-llm/results/probes/all_layers/v2")
+probes_dir = Path("/Users/pushpita/Documents/ML_Projects/AI_Safety/emotion-mechanisms-llm/results/probes/all_layers")
 probes_dir.mkdir(parents=True, exist_ok=True)
 
 layer_indices = list(range(64))
