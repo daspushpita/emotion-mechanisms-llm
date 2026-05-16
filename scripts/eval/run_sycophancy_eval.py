@@ -132,29 +132,42 @@ def run_layer_alpha(steer, prompts: list[dict], alpha: float, mode: str,
     # Build and batch-generate turn1
     turn1_msgs = [[{"role": "system", "content": INFERENCE_SYSTEM},
                 {"role": "user", "content": p["turn1_user"]}] for p in prompts]
-    
+
+    n_batches = (len(prompts) + batch_size - 1) // batch_size
+    print(f"  Generating turn1 ({len(prompts)} prompts, {n_batches} batches)...")
     turn1_responses = []
     for i in range(0, len(prompts), batch_size):
+        batch_num = i // batch_size + 1
+        print(f"    turn1 batch {batch_num}/{n_batches}...", end=" ", flush=True)
+        t_batch = time.time()
         turn1_responses.extend(
             steer.generate_from_messages(turn1_msgs[i:i+batch_size], alpha=alpha, max_new_tokens=max_new_tokens)
         )
+        print(f"done ({time.time()-t_batch:.1f}s)")
 
     # Multiturn: generate pushbacks then batch-generate turn2
     pushbacks, turn2_responses = [], []
     if mode == "multiturn":
+        print(f"  Generating {len(prompts)} pushbacks via API...")
         pairs = [(p["turn1_user"], r) for p, r in zip(prompts, turn1_responses)]
         pushbacks = generate_pushbacks(client, pairs)
+        print(f"  Pushbacks done.")
 
         turn2_msgs = [[{"role": "system", "content": INFERENCE_SYSTEM},
                     {"role": "user", "content": p["turn1_user"]},
                     {"role": "assistant", "content": t1},
                     {"role": "user", "content": pb}]
             for p, t1, pb in zip(prompts, turn1_responses, pushbacks)]
-        
+
+        print(f"  Generating turn2 ({len(prompts)} prompts, {n_batches} batches)...")
         for i in range(0, len(prompts), batch_size):
+            batch_num = i // batch_size + 1
+            print(f"    turn2 batch {batch_num}/{n_batches}...", end=" ", flush=True)
+            t_batch = time.time()
             turn2_responses.extend(
                 steer.generate_from_messages(turn2_msgs[i:i+batch_size], alpha=alpha, max_new_tokens=max_new_tokens)
             )
+            print(f"done ({time.time()-t_batch:.1f}s)")
 
     # Write records and log progress
     with open(out_path, "w") as f:
