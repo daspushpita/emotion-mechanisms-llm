@@ -69,7 +69,7 @@ def get_args():
     parser.add_argument("--residual_norms_path", type=str, default=None,
                         help="Path to residual_norms_32b.json produced by compute_residual_norms.py")
     parser.add_argument("--file1", type=str, required=True, help="Path to dataset file 1")
-    parser.add_argument("--file2", type=str, required=True, help="Path to dataset file 2")
+    parser.add_argument("--file2", type=str, default=None, help="Path to multiturn dataset (required for --mode multiturn)")
 
     return parser.parse_args()
 
