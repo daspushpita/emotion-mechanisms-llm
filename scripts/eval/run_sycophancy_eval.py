@@ -243,8 +243,9 @@ def main():
     # Sweep
     for layer in layers:
         direction = np.load(args.steering_path.format(layer=layer))
-        residual_norm = residual_norms.get(str(layer), 1.0)
-        print(f"layer {layer}: {residual_norms.get(str(layer), 'N/A'):.2f}")
+        residual_norm = residual_norms.get(layer, 1.0)
+        norm_val = residual_norms.get(layer)
+        print(f"layer {layer}: residual_norm={norm_val:.4f}" if norm_val is not None else f"layer {layer}: residual_norm=1.0 (default)")
 
         steer = steering.ActivationSteer(model, tokenizer,
                                         layer_idx=layer,
