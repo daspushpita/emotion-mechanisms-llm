@@ -15,7 +15,7 @@ importlib.reload(evals)
 
 def get_args():
     parser = argparse.ArgumentParser(description="Judge Responses CLI")
-    parser.add_argument("--api_key", type=str, default=None, help="Anthropic API key (defaults to ANTHROPIC_API_KEY env var)")
+    parser.add_argument("--api_key_path", type=str, default=None, help="Path to file containing Anthropic API key")
     parser.add_argument("--singleturn_dir", type=str, required=True, help="Path to singleturn raw dir")
     parser.add_argument("--multiturn_dir",  type=str, required=True, help="Path to multiturn raw dir")
     parser.add_argument("--model", type=str, default="claude-haiku-4-5")
@@ -26,7 +26,10 @@ def main():
     args = get_args()
 
     import anthropic
-    api_key = args.api_key or os.environ.get("ANTHROPIC_API_KEY")
+    if args.api_key_path:
+        api_key = open(args.api_key_path).read().strip()
+    else:
+        api_key = os.environ.get("ANTHROPIC_API_KEY")
     client  = anthropic.Anthropic(api_key=api_key)
     judge   = evals.Sycophancy_conversation(client, args.model)
 

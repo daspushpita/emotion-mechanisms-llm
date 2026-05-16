@@ -59,7 +59,7 @@ def get_args():
     parser.add_argument("--final_alpha", type=float, default=0.0, help="Steering strength for full run")
     parser.add_argument("--batch_size", type=int, default=32, help="Generation batch size")
     parser.add_argument("--output_dir", type=str, default=None, help="Directory to save full run results (required for --mode full)")
-    parser.add_argument("--api_key", type=str, default=None, help="Anthropic API key (defaults to ANTHROPIC_API_KEY env var)")
+    parser.add_argument("--api_key_path", type=str, default=None, help="Path to file containing Anthropic API key")
 
     # Model & Path Configs
     parser.add_argument("--analysis_model", type=str, required=True, help="ID of the model being steered")
@@ -189,7 +189,10 @@ def run_layer_alpha(steer, prompts: list[dict], alpha: float, mode: str,
 def main():
     args = get_args()
 
-    api_key = args.api_key or os.environ.get("ANTHROPIC_API_KEY")
+    if args.api_key_path:
+        api_key = open(args.api_key_path).read().strip()
+    else:
+        api_key = os.environ.get("ANTHROPIC_API_KEY")
     client  = anthropic.Anthropic(api_key=api_key) if args.mode == "multiturn" else None
 
     layers  = args.layers
