@@ -68,10 +68,15 @@ def get_args():
     parser.add_argument("--steering_path", type=str, required=True, help="Path to .npy direction")
     parser.add_argument("--residual_norms_path", type=str, default=None,
                         help="Path to residual_norms_32b.json produced by compute_residual_norms.py")
-    parser.add_argument("--file1", type=str, required=True, help="Path to dataset file 1")
+    parser.add_argument("--file1", type=str, default=None, help="Path to singleturn dataset (required for --mode singleturn)")
     parser.add_argument("--file2", type=str, default=None, help="Path to multiturn dataset (required for --mode multiturn)")
 
-    return parser.parse_args()
+    args = parser.parse_args()
+    if args.mode == "singleturn" and args.file1 is None:
+        parser.error("--file1 is required for --mode singleturn")
+    if args.mode == "multiturn" and args.file2 is None:
+        parser.error("--file2 is required for --mode multiturn")
+    return args
 
 def call_claude(client: anthropic.Anthropic, anthropic_model: str, system: str, user: str,
                 max_tokens: int = 8000, retries: int = 3) -> str:
