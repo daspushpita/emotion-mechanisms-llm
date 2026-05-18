@@ -10,7 +10,7 @@ _DISTRESSED_RE = re.compile(r"DISTRESSED\s*:\s*([01])", re.IGNORECASE)
 _CHOICE_RE = re.compile(r"\(([AB])\)")
 _OPTION_RE = re.compile(r"option\s*\(?\s*([AB])\s*\)?", re.IGNORECASE)
 
-PROJECT_ROOT = Path(__file__).resolve().parents[1]
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
 SRC_DIR = PROJECT_ROOT / "src"
 if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
