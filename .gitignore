@@ -10,6 +10,12 @@ ehthumbs.db
 Thumbs.db
 files/
 files_v2/
+results/
+notebooks/
+analysis/
+datasets/
+old_scripts/
+multiturn_eval_spec.md
 
 # All the word and txt files
 *.txt
