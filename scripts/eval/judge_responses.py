@@ -16,8 +16,8 @@ importlib.reload(evals)
 def get_args():
     parser = argparse.ArgumentParser(description="Judge Responses CLI")
     parser.add_argument("--api_key_path", type=str, default=None, help="Path to file containing Anthropic API key")
-    parser.add_argument("--singleturn_dir", type=str, required=True, help="Path to singleturn raw dir")
-    parser.add_argument("--multiturn_dir",  type=str, default=None,  help="Path to multiturn raw dir (optional)")
+    parser.add_argument("--singleturn_dir", type=str, default=None, help="Path to singleturn raw dir")
+    parser.add_argument("--multiturn_dir",  type=str, default=None, help="Path to multiturn raw dir")
     parser.add_argument("--model", type=str, default="claude-haiku-4-5")
     return parser.parse_args()
 
@@ -33,7 +33,10 @@ def main():
     client  = anthropic.Anthropic(api_key=api_key)
     judge   = evals.Sycophancy_conversation(client, args.model)
 
-    raw_files = glob.glob(f"{args.singleturn_dir}/*.jsonl")
+    if not args.singleturn_dir and not args.multiturn_dir:
+        raise ValueError("At least one of --singleturn_dir or --multiturn_dir must be provided.")
+
+    raw_files = glob.glob(f"{args.singleturn_dir}/*.jsonl") if args.singleturn_dir else []
     if args.multiturn_dir:
         raw_files += glob.glob(f"{args.multiturn_dir}/*.jsonl")
     raw_files = [p for p in raw_files if not p.endswith("_judged.jsonl")]
