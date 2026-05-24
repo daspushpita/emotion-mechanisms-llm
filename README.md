@@ -37,10 +37,10 @@ This is consistent with the surgical targeting hypothesis: conflict-avoidance is
 
 | Emotion set | Best probe layer | Balanced accuracy (best) |
 |---|---|---|
-| Core 12 | 32 (~50% depth) | 0.975 (angry) |
-| Conflict-avoidance 9 | 43 (~67% depth) | 0.888 (socially_anxious) |
+| Core 12 | 32 | 0.975 (angry) |
+| Conflict-avoidance 9 | 40 | 0.888 (socially_anxious) |
 
-Two-stage architecture: context encoding peaks at layer 32 (~50% depth), behavioral disposition at layer 43 (~67% depth).
+<!-- Two-stage architecture: context encoding peaks at layer 32 (~50% depth), behavioral disposition at layer 43 (~67% depth). -->
 
 ---
 
@@ -107,7 +107,7 @@ The pipeline supports two backends via the `EMOTION_MODEL` env var:
 | `local_gguf` (default) | llama-cpp-python | Dataset generation on Mac (Qwen2.5-32B Q4 GGUF) |
 | `hf` | HuggingFace transformers | Activation extraction (requires PyTorch hooks) |
 
-For full 32B extraction, use an A100 80GB — Colab's 40GB forces 4-bit quantisation, which distorts activation geometry.
+For full 32B extraction, use an A100 80GB.
 
 ---
 
