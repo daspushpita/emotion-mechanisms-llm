@@ -22,7 +22,7 @@ distress_emotions = [
 ]
 conflict_avoidance_all = compliance_emotions + distress_emotions
 
-LAYER = 48
+LAYER = 40
 
 data_path = PROJECT_ROOT / "results" / "probes"
 

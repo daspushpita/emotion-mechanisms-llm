@@ -13,12 +13,16 @@ This project tests whether that tradeoff is a targeting problem. Conflict-avoida
 | 1 | Dataset generation (21 emotions × ~190 stories) | Done |
 | 1 | Activation extraction, all 64 layers, Qwen2.5-32B | Done |
 | 1 | Linear probe training + geometry analysis | Done |
-| 1 | Sycophancy baseline + steering sweep | In progress |
+| 1 | Steering sweep — positive valence direction (single-turn + multi-turn) | Done |
+| 1 | Steering sweep — pure compliance direction (single-turn + multi-turn) | Done |
+| 1 | Judge scoring (4,246 responses across all conditions) | Done |
 | 2 | Reward hacking / agentic-striving extension | Planned |
 
 ---
 
-## Key findings so far
+## Key findings
+
+### Geometry
 
 <img src="results/figures/output.png" alt="Combined PCA of core and conflict-avoidance emotion directions" width="700">
 
@@ -29,20 +33,52 @@ This project tests whether that tradeoff is a targeting problem. Conflict-avoida
 - `ashamed`, `socially_anxious` — sit in the negative-valence region alongside `sad` and `nervous`
 - `deferential` — embedded in the positive-valence region, close to `calm`
 
-This is the key early result: the internal geometry is inconsistent with conflict-avoidance being a single steerable direction, and consistent with the surgical targeting hypothesis.
+This is consistent with the surgical targeting hypothesis: conflict-avoidance is not a monolithic direction.
 
 | Emotion set | Best probe layer | Balanced accuracy (best) |
 |---|---|---|
 | Core 12 | 32 (~50% depth) | 0.975 (angry) |
 | Conflict-avoidance 9 | 43 (~67% depth) | 0.888 (socially_anxious) |
 
+Two-stage architecture: context encoding peaks at layer 32 (~50% depth), behavioral disposition at layer 43 (~67% depth).
+
+---
+
+### Steering results
+
+All steering experiments use layers 40 and 43, α ∈ [−0.5, +0.5], 100 prompts per condition, judged by Claude Haiku into four labels: **SYCOPHANTIC / APPROPRIATE / HARSH / PANIC_SPIRAL**.
+
+**Headline finding: HARSH is 0% across every condition and every α.** This is the central result — surgical targeting of the compliance sub-direction reduces sycophancy without inducing harshness collateral, across both single-turn and multi-turn settings.
+
+#### Single-turn (pure compliance direction, Layer 40)
+
+| α | Sycophantic | Appropriate | Panic spiral |
+|---|---|---|---|
+| −0.5 | 64% | 10% | 26% |
+| −0.2 | 19% | 81% | 0% |
+| **0.0 (baseline)** | **19%** | **81%** | **0%** |
+| +0.1 | 11% | 89% | 0% |
+| +0.4 | **8%** | 92% | 0% |
+
+Best operating point: α = +0.4, Layer 40 — sycophancy drops from 19% to 8% with no harshness and no panic.
+
+Strong negative alphas (−0.4, −0.5) cause PANIC_SPIRAL, not harshness — the model becomes incoherent before it becomes unkind.
+
+#### Single-turn vs. multi-turn production plots
+
+<!-- Add production plots here once generated -->
+<!-- `results/plots/singleturn_label40_positive_compliance.png` -->
+<!-- `results/plots/multiturn_label40_positive_compliance.png` -->
+
+<img src="results/figures/singleturn_label40_positive_compliance.png" alt="Single-turn steering results" width="700">
+<img src="results/figures/multiturn_label40_positive_compliance.png" alt="Multi-turn steering results" width="700">
 ---
 
 ## Hypothesis
 
 **Stage 1:** Testing if within the positive-valence cluster, a conflict-avoidance sub-direction is geometrically and functionally separable from warmth. Steering confined to conflict-avoidance shifts the sycophancy–harshness frontier relative to broad positive-valence steering.
 
-**Stage 2 (planned):** apply the same framework to the high-arousal negative-valence cluster — agentic striving under pressure ("desperate") vs. threat response (angry, afraid) — to test whether surgical steering can reduce reward hacking without inducing passivity.
+**Stage 2 (planned):** Apply the same framework to the high-arousal negative-valence cluster — agentic striving under pressure ("desperate") vs. threat response (angry, afraid) — to test whether surgical steering can reduce reward hacking without inducing passivity.
 
 ---
 
@@ -95,6 +131,8 @@ python scripts/run_baseline.py
 python scripts/run_steering.py
 ```
 
+Notebooks for each stage are in `notebooks/steering/new_dataset/`. The sweep notebooks are idempotent — safe to re-run, they skip already-generated files.
+
 ---
 
 ## Project structure
@@ -107,13 +145,19 @@ src/emotion_mechanisms/
 ├── evals.py          # Sycophancy and harshness scoring
 └── data.py           # Dataset I/O
 
-scripts/
-├── generate_datasets.py
-├── build_emotion_vectors.py
-├── run_linear_probes.py
-├── evaluate_results.py
-├── run_baseline.py
-└── run_steering.py
+notebooks/steering/new_dataset/
+├── baseline_single-turn.ipynb       # Singleturn sweep (positive valence + pure compliance)
+├── baseline_multi-turn_run.ipynb    # Multiturn sweep (positive valence + pure compliance)
+└── plots.ipynb                      # Production figures
+
+results/
+├── cluster_data/                    # Steering direction vectors (.npy) per layer
+├── singleturn_raw/                  # Positive valence singleturn responses + judge labels
+├── multiturn_raw/                   # Positive valence multiturn responses + judge labels
+├── pure_compliance/
+│   ├── singleturn_raw/              # Pure compliance singleturn responses + judge labels
+│   └── multiturn_raw/              # Pure compliance multiturn responses + judge labels
+└── plots/                           # Production figures
 ```
 
 ---
