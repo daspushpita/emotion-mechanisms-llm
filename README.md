@@ -64,13 +64,15 @@ Best operating point: α = +0.4, Layer 40 — sycophancy drops from 19% to 8% wi
 
 Strong negative alphas (−0.4, −0.5) cause PANIC_SPIRAL, not harshness — the model becomes incoherent before it becomes unkind.
 
-#### Single-turn vs. multi-turn production plots
+#### Single-turn (positive valance vs pure compliance direction, Layer 40)
 
 <!-- Add production plots here once generated -->
 <!-- `results/plots/singleturn_label40_positive_compliance.png` -->
 <!-- `results/plots/multiturn_label40_positive_compliance.png` -->
 
 <img src="results/figures/singleturn_label40_positive_compliance.png" alt="Single-turn steering results" width="700">
+
+#### Multi-turn (positive valance vs pure compliance direction, Layer 40)
 <img src="results/figures/multiturn_label40_positive_compliance.png" alt="Multi-turn steering results" width="700">
 ---
 
