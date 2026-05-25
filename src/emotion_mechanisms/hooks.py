@@ -1,13 +1,31 @@
 import numpy as np
 import torch
 
+
+def _get_layers(model):
+    """Return the transformer decoder layers, handling different model architectures.
+
+    Standard HF models (Qwen, Llama, Mistral, …): model.model.layers
+    Gemma3 multimodal:                              model.model.language_model.layers
+    """
+    inner = model.model
+    if hasattr(inner, "layers"):
+        return inner.layers
+    if hasattr(inner, "language_model") and hasattr(inner.language_model, "layers"):
+        return inner.language_model.layers
+    raise AttributeError(
+        f"Cannot locate decoder layers on {type(inner).__name__}. "
+        "Expected '.layers' or '.language_model.layers'."
+    )
+
+
 class ActivationExtractor:
     def __init__(self, model, layer_indices: list[int], token_position: str = "last"):
         if token_position not in {"last", "mean"}:
             raise ValueError(f"Unknown token position: {token_position}")
 
         self.token_position = token_position
-        n_layers = len(model.model.layers)
+        n_layers = len(_get_layers(model))
         if bad := [i for i in layer_indices if not (0 <= i < n_layers)]:
             raise ValueError(f"Layer indices {bad} out of range for model with {n_layers} layers")
 
@@ -30,7 +48,7 @@ class ActivationExtractor:
         if self.handles:
             raise RuntimeError("Hooks are already registered — call remove() first")
         for layer_idx in self.layer_indices:
-            layer = self.model.model.layers[layer_idx]
+            layer = _get_layers(self.model)[layer_idx]
             handle = layer.register_forward_hook(self._make_hook(layer_idx))
             self.handles.append(handle)
 

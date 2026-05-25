@@ -1,5 +1,6 @@
 import numpy as np
 import torch
+from emotion_mechanisms.hooks import _get_layers
 
 class ActivationSteer:
     def __init__(self, model, tokenizer,
@@ -36,7 +37,7 @@ class ActivationSteer:
     def _generate_chunk(self, prompts: list[str], alpha: float, max_new_tokens: int,
                         system_prompt: str = None) -> list[str]:
         self._alpha = alpha
-        target_layer = self.model.model.layers[self.layer_idx]
+        target_layer = _get_layers(self.model)[self.layer_idx]
         hook_handle = target_layer.register_forward_hook(self._make_hook())
 
         try:
@@ -70,7 +71,7 @@ class ActivationSteer:
     def generate_from_messages(self, messages_list: list[list[dict]], alpha: float, 
                             max_new_tokens: int = 300) -> str:
         self._alpha = alpha
-        target_layer = self.model.model.layers[self.layer_idx]
+        target_layer = _get_layers(self.model)[self.layer_idx]
         hook_handle = target_layer.register_forward_hook(self._make_hook())
         
         try:

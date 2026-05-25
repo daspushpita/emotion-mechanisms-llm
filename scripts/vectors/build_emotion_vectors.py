@@ -13,7 +13,7 @@ if str(SRC_DIR) not in sys.path:
 
 import emotion_mechanisms.config as cfg
 from emotion_mechanisms.model_loader import load_model_and_tokenizer
-from emotion_mechanisms.hooks import ActivationExtractor
+from emotion_mechanisms.hooks import ActivationExtractor, _get_layers
 
 #Load the dataset and group by emotion
 def load_and_group_dataset(emotional_dataset: Path, neutral_dataset: Path) -> tuple[dict[str, list[str]], list[str]]:
@@ -43,7 +43,7 @@ def _setup_model_and_extractor():
                                 analysis=True, analysis_model=cfg.ANALYSIS_MODEL_32B)
 
     #Set up the activation extractor
-    n_layers = len(model.model.layers)
+    n_layers = len(_get_layers(model))
     
     if cfg.GIVEN_LAYER_LIST:
         layer_indices = [i for i in cfg.LAYER_INDICES_32B if i < n_layers]
