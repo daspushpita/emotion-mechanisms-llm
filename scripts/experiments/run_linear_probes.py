@@ -5,7 +5,7 @@ import sys
 from pathlib import Path
 from tqdm.auto import tqdm
 
-PROJECT_ROOT = Path(__file__).resolve().parents[1]
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
 SRC_DIR = PROJECT_ROOT / "src"
 if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
@@ -14,12 +14,12 @@ import emotion_mechanisms.config as cfg
 import emotion_mechanisms.vectors as vectors
 
 
-base_activations_path = Path("/Users/pushpita/Documents/ML_Projects/AI_Safety/emotion-mechanisms-llm/results/baseline/all_layers/activations_32b.h5")
-additional_activations_path = Path("/Users/pushpita/Documents/ML_Projects/AI_Safety/emotion-mechanisms-llm/results/baseline/all_layers/activations_additionalemotions_32b.h5")
-probes_dir = Path("/Users/pushpita/Documents/ML_Projects/AI_Safety/emotion-mechanisms-llm/results/probes/all_layers")
+base_activations_path = Path("/Users/pushpita/Documents/ML_Projects/AI_Safety/emotion-mechanisms-llm/results/gemma/activations_32b.h5")
+additional_activations_path = Path("/Users/pushpita/Documents/ML_Projects/AI_Safety/emotion-mechanisms-llm/results/gemma/activations_additionalemotions_32b.h5")
+probes_dir = Path("/Users/pushpita/Documents/ML_Projects/AI_Safety/emotion-mechanisms-llm/results/gemma/probes")
 probes_dir.mkdir(parents=True, exist_ok=True)
 
-layer_indices = list(range(64))
+layer_indices = [x for x in range(32, 62, 1)] # Focus on later layers where emotion info is stronger, but can be adjusted as needed
 
 # --- Base 12 emotions ---
 base_emotion_vectors = vectors.EmotionVectorExtractor(activations_path=base_activations_path,
@@ -45,7 +45,7 @@ print(f"Saved base vectors for all {len(layer_indices)} layers. Best layer symli
 
 
 # --- Additional (conflict-avoidance) emotions ---
-additional_probes_dir = Path("/Users/pushpita/Documents/ML_Projects/AI_Safety/emotion-mechanisms-llm/results/probes/all_layers_additional")
+additional_probes_dir = Path("/Users/pushpita/Documents/ML_Projects/AI_Safety/emotion-mechanisms-llm/results/gemma/probes/all_layers_additional")
 additional_probes_dir.mkdir(parents=True, exist_ok=True)
 
 additional_emotion_vectors = vectors.EmotionVectorExtractor(activations_path=additional_activations_path,

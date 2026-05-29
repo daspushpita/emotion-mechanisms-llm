@@ -2,7 +2,7 @@ import sys, os
 import numpy as np
 from pathlib import Path
 
-PROJECT_ROOT = Path(__file__).resolve().parents[1]
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
 SRC_DIR = PROJECT_ROOT / "src"
 if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
@@ -22,14 +22,14 @@ distress_emotions = [
 ]
 conflict_avoidance_all = compliance_emotions + distress_emotions
 
-LAYER = 40
+LAYER = 48
 
-data_path = PROJECT_ROOT / "results" / "probes"
+data_path = PROJECT_ROOT / "results" / "gemma" / "probes"
 
 core_dir     = data_path / "all_layers" / f"layer_{LAYER}" / "pca_denoised"
 conflict_dir = data_path / "all_layers_additional" / f"layer_{LAYER}" / "pca_denoised"
 
-result_path = PROJECT_ROOT / "results" / "cluster_data"
+result_path = PROJECT_ROOT / "results" / "gemma" / "cluster_data"
 
 def normalize(v, eps=1.e-8):
     return v / (np.linalg.norm(v) + eps)
@@ -62,6 +62,9 @@ def main():
     conflict_mean   = normalize(np.stack([load_vec(conflict_dir, e) for e in conflict_avoidance_all]).mean(axis=0))
 
     # ── Section 1: Full-mean baseline (replicates original output) ─
+    print(f"\n{'='*60}")
+    print(f"RESULTS FOR LAYER {LAYER}")
+    print('='*60)
     _section("FULL TAXONOMY MEAN (baseline)")
     print(f"conflict_mean vs positive : {cos(conflict_mean, positive_mean):+.4f}")
     print(f"conflict_mean vs negative : {cos(conflict_mean, negative_mean):+.4f}")
@@ -118,6 +121,25 @@ def main():
     # save compliance direction
     np.save(layer_dir / "steering_direction_compliance.npy", compliance_mean)
     print(f"saved -> {layer_dir / 'steering_direction_compliance.npy'}")
+
+    _section("PURE WARMTH DIRECTION (compliance-valence projected out)")
+    pure_warmth = positive_mean - np.dot(compliance_mean, positive_mean) * compliance_mean
+    pure_warmth = normalize(pure_warmth)
+
+    print(f"pure_warmth vs positive : {cos(pure_warmth, positive_mean):+.4f}  (target: ~0.0)")
+    print(f"pure_warmth vs negative : {cos(pure_warmth, negative_mean):+.4f}")
+    print(f"pure_warmth vs distress : {cos(pure_warmth, distress_mean):+.4f}")
+
+    # Per-emotion alignment with pure direction
+    print(f"\n  {'emotion':<23}  {'vs pure_warmth':>18}")
+    print(f"{'-'*23}  {'-'*18}")
+    for emotion in compliance_emotions:
+        vec = load_vec(conflict_dir, emotion)
+        print(f"{emotion:<23}  {cos(vec, pure_warmth):>+18.4f}")
+
+    # save warmth direction
+    np.save(layer_dir / "steering_direction_pure_warmth.npy", pure_warmth)
+    print(f"saved -> {layer_dir / 'steering_direction_pure_warmth.npy'}")
 
     # ── Positive valence direction ────────────────────────────────
     _section("POSITIVE VALENCE DIRECTION")

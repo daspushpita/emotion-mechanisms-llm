@@ -26,7 +26,7 @@ def select_model(model_name: str, analysis: bool = False, analysis_model: str = 
             raise FileNotFoundError(f"GGUF model not found at {GGUF_MODEL}")
         return str(GGUF_MODEL)
     else:
-        raise ValueError(f"Unknown model name: {model_name}")
+        return model_name
 
 def get_device() -> str:
     return "mps" if torch.backends.mps.is_available() else "cpu"
