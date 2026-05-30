@@ -6,7 +6,9 @@ class ActivationSteer:
     def __init__(self, model, tokenizer,
                 layer_idx: int,
                 direction: np.ndarray,
-                residual_norm: float = 1.0):
+                residual_norm: float = 1.0,
+                persona_direction=None, beta=0.0):
+        
         self.model = model
         self.tokenizer = tokenizer
         self.layer_idx = layer_idx
@@ -14,11 +16,21 @@ class ActivationSteer:
         self.residual_norm = residual_norm
         self.direction = torch.tensor(direction, dtype=torch.float32)
 
+        #For injecting a secondary steering direction (e.g. persona) alongside the primary (e.g. emotion), we use a simple convex combination of the two directions, where beta is the mixing coefficient for the persona direction.
+        self.beta = beta
+        self.persona_direction = (torch.tensor(persona_direction, dtype=torch.float32) 
+            if persona_direction is not None else None)
+
+
     def _make_hook(self):
         def hook_fn(_module, _input, output):
             hidden_vector = output[0] if isinstance(output, tuple) else output
             steering_direction = self.direction.to(hidden_vector.device, dtype=hidden_vector.dtype)
             hidden_vector = hidden_vector + self._alpha * self.residual_norm * steering_direction
+            
+            if self.persona_direction is not None and self.beta != 0.0:
+                persona = self.persona_direction.to(hidden_vector.device, dtype=hidden_vector.dtype)
+                hidden_vector = hidden_vector + self.beta * self.residual_norm * persona
             return (hidden_vector,) + output[1:] if isinstance(output, tuple) else hidden_vector
 
         return hook_fn
