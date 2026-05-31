@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 import time
 import anthropic
+import torch
 import numpy as np
 from collections import defaultdict
 
@@ -71,6 +72,9 @@ def get_args():
     parser.add_argument("--file1", type=str, default=None, help="Path to singleturn dataset (required for --mode singleturn)")
     parser.add_argument("--file2", type=str, default=None, help="Path to multiturn dataset (required for --mode multiturn)")
 
+    parser.add_argument("--beta", type=float, default=0.0, help="Mixing coefficient for persona steering direction (if any)")
+    parser.add_argument("--persona_path", type=str, default=None, help="Path to .pt persona vector file for secondary steering (optional)")
+    
     args = parser.parse_args()
     if args.mode == "singleturn" and args.file1 is None:
         parser.error("--file1 is required for --mode singleturn")
@@ -82,13 +86,13 @@ def call_claude(client: anthropic.Anthropic, anthropic_model: str, system: str, 
                 max_tokens: int = 8000, retries: int = 3) -> str:
     for attempt in range(retries):
         try:
-            msg = client.messages.create(
-                model=anthropic_model,
-                max_tokens=max_tokens,
-                system=system,
-                messages=[{"role": "user", "content": user}],
-            )
+            msg = client.messages.create(model=anthropic_model,
+                                        max_tokens=max_tokens,
+                                        system=system,
+                                        messages=[{"role": "user", "content": user}])
+            
             return msg.content[0].text
+        
         except anthropic.RateLimitError:
             wait = 30 * (attempt + 1)
             print(f"  Rate limited — waiting {wait}s...")
@@ -237,6 +241,12 @@ def main():
     with open(args.residual_norms_path) as f:
         residual_norms = {int(k): v for k, v in json.load(f).items()}
 
+    # Load persona tensor if provided (all layers; will index per-layer in sweep)
+    persona_tensor = None
+    if args.persona_path:
+        persona_tensor = torch.load(args.persona_path, weights_only=True)["vector"].float()
+        print(f"Loaded persona tensor from {args.persona_path}, shape={tuple(persona_tensor.shape)}")
+
     # Output dir
     out_dir = Path(args.output_dir) if args.output_dir else Path("results") / f"{args.mode}_raw"
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -252,10 +262,17 @@ def main():
         norm_val = residual_norms.get(layer)
         print(f"layer {layer}: residual_norm={norm_val:.4f}" if norm_val is not None else f"layer {layer}: residual_norm=1.0 (default)")
 
+        persona_direction = None
+        if persona_tensor is not None:
+            v = persona_tensor[layer].numpy()
+            persona_direction = v / (np.linalg.norm(v) + 1e-10)
+
         steer = steering.ActivationSteer(model, tokenizer,
                                         layer_idx=layer,
                                         direction=direction,
-                                        residual_norm=residual_norm)
+                                        residual_norm=residual_norm,
+                                        persona_direction=persona_direction,
+                                        beta=args.beta)
 
         for alpha in alphas:
             out_path = out_dir / f"layer{layer}_alpha{alpha:.2f}.jsonl"
