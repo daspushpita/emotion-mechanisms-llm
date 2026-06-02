@@ -17,7 +17,8 @@ from emotion_mechanisms.config import (
     NEUTRAL_TEMPLATE_PATH,
     STORY_TEMPLATE_PATH,
     NEUTRAL_STORIES_TEMPLATE_PATH,
-    EMOTIONAL_STORIES_DATASET,
+    CORE_EMOTIONAL_STORIES_DATASET,
+    ADDITIONAL_EMOTIONAL_STORIES_DATASET,
     NEUTRAL_STORIES_DATASET,
     TOPICS_PATH,
     PROCESSED_DIR,
@@ -125,7 +126,10 @@ def main():
 
     if story_flag == "emotional_stories":
         story_template = load_template(STORY_TEMPLATE_PATH)
-        story_out_path = EMOTIONAL_STORIES_DATASET
+        from emotion_mechanisms.config import CONFLICT_AVOIDANCE_EMOTIONS
+        is_additional = set(EMOTIONS) == set(CONFLICT_AVOIDANCE_EMOTIONS)
+        story_out_path = ADDITIONAL_EMOTIONAL_STORIES_DATASET if is_additional else CORE_EMOTIONAL_STORIES_DATASET
+        print(f"Output: {story_out_path}")
         story_out_path.parent.mkdir(parents=True, exist_ok=True)
         existing_counts, emo_id = load_existing_story_counts(story_out_path, has_emotion=True)
         for topic in topics:

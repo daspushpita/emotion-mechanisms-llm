@@ -12,8 +12,8 @@ PROCESSED_DIR = PROJECT_ROOT / "datasets" / "processed"
 RESULTS_DIR  = PROJECT_ROOT / "results"
 ACTIVATIONS_DIR = RESULTS_DIR / "activations"
 
-TOPICS_PATH           = RAW_DIR / "topics_v1.txt"       # 15 topics used for v1 dataset
-TOPICS_FULL_PATH      = RAW_DIR / "topics.txt"          # 85 topics for future expansion
+TOPICS_PATH           = RAW_DIR / "topics_v2.txt"       # 50 topics used for v2 dataset
+TOPICS_FULL_PATH      = RAW_DIR / "topics_orig.txt"     # 100 topics (full set)
 STORY_TEMPLATE_PATH   = RAW_DIR / "stories_prompt.txt"
 NEUTRAL_STORIES_TEMPLATE_PATH   = RAW_DIR / "neutral_stories_prompt.txt"
 EMOTIONAL_TEMPLATE_PATH = RAW_DIR / "emotional_dialouge_prompt.txt"
@@ -25,8 +25,10 @@ SYCOPHANCY_FILES = [
     SYCOPHANCY_DIR / "sycophancy_on_political_typology_quiz.jsonl",
 ]
 
-EMOTIONAL_STORIES_DATASET = PROCESSED_DIR / "additional_emotional_stories_qwen32B_v2.jsonl"
-NEUTRAL_STORIES_DATASET = PROCESSED_DIR / "neutral_stories_qwen32B_v2.jsonl"
+CORE_EMOTIONAL_STORIES_DATASET       = PROCESSED_DIR / "emotional_stories_qwen32B_v3.jsonl"
+ADDITIONAL_EMOTIONAL_STORIES_DATASET = PROCESSED_DIR / "additional_emotional_stories_qwen32B_v3.jsonl"
+EMOTIONAL_STORIES_DATASET            = ADDITIONAL_EMOTIONAL_STORIES_DATASET  # default (backward compat)
+NEUTRAL_STORIES_DATASET              = PROCESSED_DIR / "neutral_stories_qwen32B_v3.jsonl"
 ACTIVATIONS_PATH = ACTIVATIONS_DIR / "activations_additional_emotions_qwen32B_v1.h5"
 ACTIVATIONS_CHECKPOINT_PATH: Path | None = None
 
@@ -75,7 +77,7 @@ ALL_EMOTIONS: list[str] = CONFLICT_AVOIDANCE_EMOTIONS
 # ---------------------------------------------------------------------------
 N_STORIES_PER_BATCH: int = 5          # stories requested per model call
 N_SAMPLES_PER_TOPIC_EMOTION: int = 12 # target stories per (topic, emotion) pair
-N_NEUTRAL_PER_TOPIC: int = 3          # neutral stories per topic (sanity-check baseline)
+N_NEUTRAL_PER_TOPIC: int = 12         # neutral stories per topic, matching emotional density
 STORY_GENERATION_MODE: str = "emotional_stories"  # "emotional_stories" | "neutral_stories" | "dialogues"
 GENERATION_PARSE_RETRIES: int = 3
 MAX_NEW_TOKENS: int = 1600
