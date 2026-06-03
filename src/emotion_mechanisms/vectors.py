@@ -107,7 +107,7 @@ class EmotionVectorExtractor:
         metrics = {}
         cv = StratifiedKFold(n_splits=5, shuffle=True, random_state=cfg.SEED)
         
-        for emotion in tqdm(self.emotions, desc=f"Probe directions layer {layer}", unit="emotion"):
+        for emotion in self.emotions:
             x_pos = self.activations[layer]["emotional"][emotion]
             x_neg = [self.activations[layer]["emotional"][other_emotion] for other_emotion in self.emotions if other_emotion != emotion]
 
@@ -115,8 +115,8 @@ class EmotionVectorExtractor:
             X = np.vstack([x_pos, x_neg])
             y = np.array([1] * len(x_pos) + [0] * len(x_neg))
 
-            clf = LogisticRegression(max_iter=1000, class_weight="balanced")
-            scores = cross_validate(clf, X, y, cv=cv, scoring=PROBE_SCORING, n_jobs=-1)
+            clf = LogisticRegression(max_iter=2000, class_weight="balanced")
+            scores = cross_validate(clf, X, y, cv=cv, scoring=PROBE_SCORING, n_jobs=1)
             
             majority_baseline = max(np.mean(y == 0), np.mean(y == 1))
             metrics[emotion] = {metric: float(np.mean(scores[f"test_{metric}"])) for metric in PROBE_SCORING}
@@ -128,7 +128,7 @@ class EmotionVectorExtractor:
 
     def probe_directions(self, layer: int) -> dict[str, np.ndarray]:
         directions = {}
-        for emotion in tqdm(self.emotions, desc=f"Probe directions layer {layer}", unit="emotion"):
+        for emotion in self.emotions:
             x_pos = self.activations[layer]["emotional"][emotion]
             x_neg = [self.activations[layer]["emotional"][other_emotion] for other_emotion in self.emotions
                 if other_emotion != emotion]
@@ -145,9 +145,14 @@ class EmotionVectorExtractor:
         return directions
 
     def layer_sweep(self, layers: list[int]) -> dict[int, dict[str, float]]:
-        results = Parallel(n_jobs=-1, prefer="threads")(
-            delayed(self.probe_metrics)(layer) for layer in layers
-        )
+        with tqdm(total=len(layers), desc="Layer sweep", unit="layer") as pbar:
+            def _run(layer):
+                result = self.probe_metrics(layer)
+                pbar.update(1)
+                return result
+            results = Parallel(n_jobs=-1, prefer="threads")(
+                delayed(_run)(layer) for layer in layers
+            )
         return dict(zip(layers, results))
 
     def save_vectors(self, directions: dict[str, np.ndarray], subdir: str, root: Path = PROBES_DIR) -> None:
