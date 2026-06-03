@@ -26,8 +26,8 @@ def get_args():
     parser.add_argument("--additional_activations_path", type=str, default=str(additional_activations_path), help="Path to additional emotions activations .h5 file")
     parser.add_argument("--probes_dir", type=str, default=str(probes_dir), help="Directory to save probe results")
     parser.add_argument("--layer_indices", type=int, nargs='+', default=layer_indices, help="List of layer indices to analyze (e.g. --layer_indices 32 33 34 ...)")
-    parser.add_argument("--core_emotions_list", type=str, nargs='+', default=cfg.BASE_EMOTIONS, help="List of core emotions to analyze (default: base emotions)")
-    parser.add_argument("--additional_emotions_list", type=str, nargs='+', default=cfg.ADDITIONAL_EMOTIONS, help="List of additional emotions to analyze (default: base emotions)")
+    parser.add_argument("--core_emotions_list", type=str, nargs='+', default=cfg.EMOTIONS, help="List of core emotions to analyze (default: base emotions)")
+    parser.add_argument("--additional_emotions_list", type=str, nargs='+', default=cfg.CONFLICT_AVOIDANCE_EMOTIONS, help="List of additional emotions to analyze (default: base emotions)")
     args = parser.parse_args()
     return args
 
