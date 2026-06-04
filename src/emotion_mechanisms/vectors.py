@@ -6,10 +6,11 @@ import numpy as np
 import sys
 from tqdm import tqdm
 from pathlib import Path
-from joblib import Parallel, delayed
 from sklearn.linear_model import LogisticRegression
 from sklearn.model_selection import StratifiedKFold, cross_validate
 from sklearn.decomposition import PCA
+from sklearn.pipeline import Pipeline
+from sklearn.preprocessing import StandardScaler
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 SRC_DIR = PROJECT_ROOT / "src"
@@ -57,7 +58,8 @@ class EmotionVectorExtractor:
         """
         #First fit PCA on the neutral activations for this layer, and determine how many components we need to retain to preserve the specified variance threshold.
         neutral_activations = self.activations[layer]["neutral"]
-        pca = PCA()
+        neutral_activations = np.nan_to_num(neutral_activations, nan=0.0, posinf=0.0, neginf=0.0)
+        pca = PCA(svd_solver="randomized", random_state=42)
         pca.fit(neutral_activations)
         running_sum = np.cumsum(pca.explained_variance_ratio_)
         n_components = np.searchsorted(running_sum, self.pca_variance_threshold) + 1
@@ -97,7 +99,7 @@ class EmotionVectorExtractor:
             self.mean_differences[layer][emotion] = emotional_mean - neutral_mean
         return self.mean_differences[layer]
 
-    def probe_metrics(self, layer: int) -> dict[str, float]:
+    def probe_metrics(self, layer: int, pca_components: int = 256) -> dict[str, float]:
         # Binary probe per emotion: this emotion vs. all other emotions.
         PROBE_SCORING = {"accuracy": "accuracy",
                         "balanced_accuracy": "balanced_accuracy",
@@ -106,17 +108,27 @@ class EmotionVectorExtractor:
                         "roc_auc": "roc_auc"}
         metrics = {}
         cv = StratifiedKFold(n_splits=5, shuffle=True, random_state=cfg.SEED)
-        
+
+        all_X = np.vstack(
+            [self.activations[layer]["emotional"][e] for e in self.emotions]
+            + [self.activations[layer]["neutral"]]
+        )
+        pca = PCA(n_components=min(pca_components, all_X.shape[1]), random_state=cfg.SEED)
+        pca.fit(all_X)
+
         for emotion in self.emotions:
-            x_pos = self.activations[layer]["emotional"][emotion]
-            x_neg = [self.activations[layer]["emotional"][other_emotion] for other_emotion in self.emotions if other_emotion != emotion]
+            x_pos = pca.transform(self.activations[layer]["emotional"][emotion])
+            x_neg = [pca.transform(self.activations[layer]["emotional"][other_emotion]) for other_emotion in self.emotions if other_emotion != emotion]
 
             x_neg = np.vstack(x_neg)
             X = np.vstack([x_pos, x_neg])
             y = np.array([1] * len(x_pos) + [0] * len(x_neg))
 
-            clf = LogisticRegression(max_iter=2000, class_weight="balanced")
-            scores = cross_validate(clf, X, y, cv=cv, scoring=PROBE_SCORING, n_jobs=1)
+            clf = Pipeline([
+                ("scaler", StandardScaler()),
+                ("lr", LogisticRegression(max_iter=4000, class_weight="balanced")),
+            ])
+            scores = cross_validate(clf, X, y, cv=cv, scoring=PROBE_SCORING, n_jobs=-1)
             
             majority_baseline = max(np.mean(y == 0), np.mean(y == 1))
             metrics[emotion] = {metric: float(np.mean(scores[f"test_{metric}"])) for metric in PROBE_SCORING}
@@ -137,7 +149,7 @@ class EmotionVectorExtractor:
             X = np.vstack([x_pos, x_neg])
             y = np.array([1] * len(x_pos) + [0] * len(x_neg))
 
-            clf = LogisticRegression(max_iter=1000, class_weight="balanced")
+            clf = LogisticRegression(max_iter=4000, class_weight="balanced")
             clf.fit(X, y)
             w = clf.coef_[0]
             directions[emotion] = w / (np.linalg.norm(w) + 1e-8)
@@ -145,15 +157,7 @@ class EmotionVectorExtractor:
         return directions
 
     def layer_sweep(self, layers: list[int]) -> dict[int, dict[str, float]]:
-        with tqdm(total=len(layers), desc="Layer sweep", unit="layer") as pbar:
-            def _run(layer):
-                result = self.probe_metrics(layer)
-                pbar.update(1)
-                return result
-            results = Parallel(n_jobs=-1, prefer="threads")(
-                delayed(_run)(layer) for layer in layers
-            )
-        return dict(zip(layers, results))
+        return {layer: self.probe_metrics(layer) for layer in tqdm(layers, desc="Layer sweep", unit="layer")}
 
     def save_vectors(self, directions: dict[str, np.ndarray], subdir: str, root: Path = PROBES_DIR) -> None:
         path = root / subdir

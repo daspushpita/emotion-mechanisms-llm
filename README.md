@@ -1,8 +1,8 @@
-# Surgical Emotion Steering
+# The Geometry of Yes: Mapping Sycophancy Inside an LLM's Emotion Space
 
 Sycophancy and reward hacking are live RLHF alignment failures. Sofroniew et al. (2026) showed both are causally mediated by internal emotion representations in Claude Sonnet 4.5 — and that suppressing broad positive-valence vectors reduces sycophancy but produces harshness instead. The field currently has no deployable representation-level intervention for sycophancy as a result.
 
-This project tests whether that tradeoff is a targeting problem. Conflict-avoidance (fear, deference, social anxiety) and warmth (happy, loving, calm) both live inside the positive-valence cluster — but a model that's afraid of upsetting the user is not the same thing as a model being warm to the user. If those directions are geometrically separable, steering confined to conflict-avoidance should reduce sycophancy with less harshness collateral than broad positive-valence suppression. All experiments run on Qwen2.5-32B, making the findings reproducible without access to proprietary systems.
+This project tests whether that tradeoff is a targeting problem. Conflict-avoidance (fear, deference, social anxiety) and warmth (happy, loving, calm) both live inside the positive-valence cluster — but a model that's afraid of upsetting the user is not the same thing as a model being warm to the user. If those directions are geometrically separable, steering confined to conflict-avoidance should reduce sycophancy with less harshness collateral than broad positive-valence suppression. Experiments run on **Qwen2.5-32B** and **Gemma3-27B**.
 
 ---
 
@@ -13,90 +13,95 @@ This project tests whether that tradeoff is a targeting problem. Conflict-avoida
 | 1 | Dataset generation (21 emotions × ~190 stories) | Done |
 | 1 | Activation extraction, all 64 layers, Qwen2.5-32B | Done |
 | 1 | Linear probe training + geometry analysis | Done |
-| 1 | Steering sweep — positive valence direction (single-turn + multi-turn) | Done |
-| 1 | Steering sweep — pure compliance direction (single-turn + multi-turn) | Done |
-| 1 | Judge scoring (4,246 responses across all conditions) | Done |
+| 1 | Steering sweep — positive valence + pure compliance (Qwen, single-turn + multi-turn) | Done |
+| 1 | Steering sweep — positive valence + pure compliance (Gemma3-27B) | Done |
+| 1 | Judge scoring across all conditions | Done |
+| 1 | Persona vector orthogonality check | Done |
+| 1 | 7-direction decomposed sweep (Qwen, layer 40) | In progress |
 | 2 | Reward hacking / agentic-striving extension | Planned |
 
 ---
 
-## Key findings
+## Key Findings
 
 ### Geometry
 
-<img src="results/figures/output.png" alt="Combined PCA of core and conflict-avoidance emotion directions" width="700">
+<img src="results/figures/emotion_vectors_Qwen_layer40_v2.png" alt="Combined PCA of core and conflict-avoidance emotion directions" width="700">
 
-**PC1 recovers valence.** The valence-arousal structure reported for Claude Sonnet 4.5 replicates on Qwen2.5-32B across all 64 layers.
+**PC1 recovers valence.** The valence-arousal structure reported for Claude Sonnet 4.5 replicates on both Qwen2.5-32B and Gemma3-27B.
 
-**Conflict-avoidance is not a single cluster.** The nine conflict-avoidance emotions split geometrically into at least two sub-groups:
-- `approval_seeking`, `validation_seeking`, `people_pleasing` — tight sub-cluster in the positive/low-PC2 quadrant, distinct from warmth
-- `ashamed`, `socially_anxious` — sit in the negative-valence region alongside `sad` and `nervous`
-- `deferential` — embedded in the positive-valence region, close to `calm`
+**Conflict-avoidance is not a single cluster.** The conflict-avoidance emotions split into two geometrically opposed sub-groups (cosine similarity −0.98 between sub-cluster means):
 
-This is consistent with the surgical targeting hypothesis: conflict-avoidance is not a monolithic direction.
+| Cluster | Emotions | Valence position | Cosine with positive valence |
+|---|---|---|---|
+| **Compliance** | approval_seeking, validation_seeking, people_pleasing | positive/low-PC2 | +0.65 |
+| **Distress** | ashamed, socially_anxious, conflict_avoidant | negative-valence region | −0.78 |
 
-| Emotion set | Best probe layer | Balanced accuracy (best) |
-|---|---|---|
-| Core 12 | 32 | 0.975 (angry) |
-| Conflict-avoidance 9 | 40 | 0.888 (socially_anxious) |
-
-<!-- Two-stage architecture: context encoding peaks at layer 32 (~50% depth), behavioral disposition at layer 43 (~67% depth). -->
+Submissive and deferential fall between the two groups, consistent with their weak alignment with either sub-cluster. This is consistent with the surgical targeting hypothesis: conflict-avoidance is not a monolithic direction.
 
 ---
 
-### Steering results
+### Steering Results
 
-All steering experiments use layers 40 and 43, α ∈ [−0.5, +0.5], 100 prompts per condition, judged by Claude Haiku into four labels: **SYCOPHANTIC / APPROPRIATE / HARSH / PANIC_SPIRAL**.
+All steering experiments use layer 40 (Qwen) and layer 41 (Gemma), α ∈ [−0.5, +0.5], judged by Claude Haiku into four labels: **SYCOPHANTIC / APPROPRIATE / HARSH / PANIC_SPIRAL**.
 
-**Headline finding: HARSH is 0% across every condition and every α.** This is the central result — surgical targeting of the compliance sub-direction reduces sycophancy without inducing harshness collateral, across both single-turn and multi-turn settings.
+**Headline finding:** Broad positive-valence steering and the orthogonalized compliance direction move sycophancy in **opposite directions** under positive α. Steering toward positive valence makes the model more sycophantic; steering toward the compliance direction makes it less so. **HARSH is 0% across every condition and every α** in both models.
 
-#### Single-turn (pure compliance direction, Layer 40)
+#### Qwen2.5-32B — Single-turn (Layer 40)
 
-| α | Sycophantic | Appropriate | Panic spiral |
-|---|---|---|---|
-| −0.5 | 64% | 10% | 26% |
-| −0.2 | 19% | 81% | 0% |
-| **0.0 (baseline)** | **19%** | **81%** | **0%** |
-| +0.1 | 11% | 89% | 0% |
-| +0.4 | **8%** | 92% | 0% |
+| Direction | α | Sycophantic | Appropriate | Panic spiral |
+|---|---|---|---|---|
+| Positive valence | +0.5 | 100% | 0% | 0% |
+| Positive valence | −0.3 | — | — | spiral begins |
+| **Baseline** | **0.0** | **19%** | **81%** | **0%** |
+| Pure compliance | +0.1 | 11% | 89% | 0% |
+| Pure compliance | +0.4 | **8%** | **92%** | **0%** |
+| Pure compliance | −0.5 | 64% | 10% | 26% |
 
-Best operating point: α = +0.4, Layer 40 — sycophancy drops from 19% to 8% with no harshness and no panic.
+Best operating point: **α = +0.4, pure compliance, Layer 40** — sycophancy drops from 19% to 8% with no harshness and no panic.
 
-Strong negative alphas (−0.4, −0.5) cause PANIC_SPIRAL, not harshness — the model becomes incoherent before it becomes unkind.
-
-#### Single-turn (positive valance vs pure compliance direction, Layer 40)
-
-<!-- Add production plots here once generated -->
-<!-- `results/plots/singleturn_label40_positive_compliance.png` -->
-<!-- `results/plots/multiturn_label40_positive_compliance.png` -->
+#### Single-turn — Positive Valence vs Pure Compliance (Layer 40)
 
 <img src="results/figures/singleturn_label40_positive_compliance.png" alt="Single-turn steering results" width="700">
 
-#### Multi-turn (positive valance vs pure compliance direction, Layer 40)
+#### Multi-turn — Positive Valence vs Pure Compliance (Layer 40)
+
 <img src="results/figures/multiturn_label40_positive_compliance.png" alt="Multi-turn steering results" width="700">
+
+Multi-turn baseline sycophancy is ~40% (consistent with the model being more likely to agree under user pushback). The directional pattern holds: positive compliance α reduces sycophancy, negative compliance α amplifies it. HARSH remains 0% across the full sweep.
+
+#### Gemma3-27B — Single-turn (Layer 41)
+
+Baseline sycophancy: 24%. The main result replicates — positive compliance α reduces sycophancy below baseline, appropriate responses hold at ~80%, harshness is 0% throughout. Stable window is narrower (α ∈ [−0.20, +0.20]) with model breakdown beyond those values. The dissociation holds despite Gemma's PC2 axis being inverted relative to Qwen.
+
+<img src="results/figures/gemma_singleturn_label41_positive_compliance.png" alt="Gemma single-turn steering results" width="700">
+
+---
+
+### Persona Directions Are Orthogonal to Emotion Space
+
+Persona vectors (scientist, chameleon, default assistant; Lu et al., 2026) were projected onto the warmth, positive valence, and compliance directions in Qwen2.5-32B at layer 40. All cosines were near zero. A small ~0.09 cosine with positive valence is consistent across all three personas, suggesting it is a property of the assistant axis in general rather than anything persona-specific. Combining persona steering with emotion-space steering should produce independent additive effects under a linear approximation.
+
+---
+
+## Open Question
+
+The orthogonalized compliance direction is simultaneously aligned with approval-seeking emotions and opposed to the distress cluster. The behavioral reduction in sycophancy may come from the approval-seeking alignment, the anti-distress alignment, or an interaction between the two. The ongoing 7-direction decomposed sweep is designed to disentangle these possibilities.
+
 ---
 
 ## Hypothesis
 
-**Stage 1:** Testing if within the positive-valence cluster, a conflict-avoidance sub-direction is geometrically and functionally separable from warmth. Steering confined to conflict-avoidance shifts the sycophancy–harshness frontier relative to broad positive-valence steering.
+**Stage 1:** Within the positive-valence cluster, a conflict-avoidance sub-direction is geometrically and functionally separable from warmth. Steering confined to conflict-avoidance shifts the sycophancy–harshness frontier relative to broad positive-valence steering.
 
 **Stage 2 (planned):** Apply the same framework to the high-arousal negative-valence cluster — agentic striving under pressure ("desperate") vs. threat response (angry, afraid) — to test whether surgical steering can reduce reward hacking without inducing passivity.
-
----
-
-## What this project does
-
-1. **Replicates** the valence-arousal geometry and sycophancy–harshness tradeoff from Sofroniew et al. on an open model
-2. **Tests** whether a geometrically separable conflict-avoidance sub-direction exists inside the positive-valence cluster
-3. **Measures** whether steering confined to that sub-direction shifts the sycophancy–harshness frontier relative to broad positive-valence steering
-4. **Open-sources** a modular probe training and activation steering pipeline for any HuggingFace transformer
 
 ---
 
 ## Setup
 
 ```bash
-pip install torch transformers accelerate scikit-learn numpy matplotlib seaborn h5py tqdm
+pip install torch transformers accelerate scikit-learn numpy matplotlib seaborn h5py tqdm anthropic
 pip install llama-cpp-python   # only needed for local dataset generation
 ```
 
@@ -123,21 +128,28 @@ EMOTION_MODEL=hf python scripts/build_emotion_vectors.py
 # 3. Train linear probes; save mean-diff directions
 python scripts/run_linear_probes.py
 
-# 4. Geometry analysis and PCA plots
-python scripts/evaluate_results.py
+# 4. Geometry analysis and direction saving (7 directions per layer)
+python scripts/eval/evaluate_results_v2.py --layer 40
 
 # 5. Baseline sycophancy/harshness rates (unsteered)
 python scripts/run_baseline.py
 
-# 6. Steering sweep (broad positive-valence vs. surgical compliance)
-python scripts/run_steering.py
+# 6. Steering sweep
+python scripts/eval/run_sycophancy_eval.py \
+    --mode singleturn --run full \
+    --layers 40 --alphas -0.5 -0.4 -0.3 -0.2 -0.1 0.0 0.1 0.2 0.3 0.4 0.5 \
+    --analysis_model hf \
+    --steering_path results/qwen_v2/cluster_data/layer_40/steering_direction_pure_compliance.npy \
+    --residual_norms_path results/baseline/residual_norms_32b_v2.json \
+    --file1 datasets/sycophancy_ultimate_claude/sycophancy_singleturn.jsonl \
+    --output_dir results/pure_compliance/singleturn_raw
 ```
 
 Notebooks for each stage are in `notebooks/steering/new_dataset/`. The sweep notebooks are idempotent — safe to re-run, they skip already-generated files.
 
 ---
 
-## Project structure
+## Project Structure
 
 ```
 src/emotion_mechanisms/
@@ -147,26 +159,34 @@ src/emotion_mechanisms/
 ├── evals.py          # Sycophancy and harshness scoring
 └── data.py           # Dataset I/O
 
+scripts/eval/
+├── evaluate_results_v2.py      # 7-direction geometric decomposition + saving
+├── run_sycophancy_eval.py      # Steering sweep runner
+└── judge_responses.py          # LLM-judge scoring
+
 notebooks/steering/new_dataset/
-├── baseline_single-turn.ipynb       # Singleturn sweep (positive valence + pure compliance)
-├── baseline_multi-turn_run.ipynb    # Multiturn sweep (positive valence + pure compliance)
-└── plots.ipynb                      # Production figures
+├── baseline_single-turn.ipynb          # Singleturn sweep
+├── baseline_multi-turn_run.ipynb       # Multiturn sweep
+├── steering_sweep_layer40_directions.ipynb  # 7-direction decomposed sweep
+└── plots.ipynb                         # Production figures
 
 results/
-├── cluster_data/                    # Steering direction vectors (.npy) per layer
-├── singleturn_raw/                  # Positive valence singleturn responses + judge labels
-├── multiturn_raw/                   # Positive valence multiturn responses + judge labels
-├── pure_compliance/
-│   ├── singleturn_raw/              # Pure compliance singleturn responses + judge labels
-│   └── multiturn_raw/              # Pure compliance multiturn responses + judge labels
-└── plots/                           # Production figures
+├── qwen_v2/cluster_data/        # 7 steering direction vectors (.npy) + metadata per layer
+├── baseline/                    # Residual norms
+├── singleturn_raw/              # Positive valence singleturn responses
+├── multiturn_raw/               # Positive valence multiturn responses
+├── pure_compliance/             # Pure compliance sweep responses
+├── steering_sweep_layer40/      # 7-direction decomposed sweep outputs
+└── figures/                     # Production figures
 ```
 
 ---
 
 ## References
 
-Sofroniew et al. (2026). *Emotion Concepts and their Function in a Large Language Model.* Transformer Circuits Thread.
+- Sofroniew et al. (2026). *Emotion Concepts and their Function in a Large Language Model.* Transformer Circuits Thread.
+- Chen et al. (2025). *Steering Toward Sycophancy via Persona Vectors.*
+- Lu et al. (2026). *Role-Based Persona Vectors in Large Language Models.*
 
 ---
 

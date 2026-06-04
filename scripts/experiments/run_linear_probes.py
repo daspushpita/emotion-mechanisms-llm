@@ -12,13 +12,33 @@ if str(SRC_DIR) not in sys.path:
 import emotion_mechanisms.config as cfg
 import emotion_mechanisms.vectors as vectors
 
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+SRC_DIR = PROJECT_ROOT / "src"
+if str(SRC_DIR) not in sys.path:
+    sys.path.insert(0, str(SRC_DIR))
 
-base_activations_path = PROJECT_ROOT / "results/gemma/activations_32b.h5"
-additional_activations_path = PROJECT_ROOT / "results/gemma/activations_additionalemotions_32b.h5"
-probes_dir = PROJECT_ROOT / "results/gemma/probes"
+# base_activations_path = PROJECT_ROOT / "results/gemma/activations_32b.h5"
+# additional_activations_path = PROJECT_ROOT / "results/gemma/activations_additionalemotions_32b.h5"
+# probes_dir = PROJECT_ROOT / "results/gemma/probes"
 
 
-layer_indices = [x for x in range(32, 62, 1)] # Focus on later layers where emotion info is stronger, but can be adjusted as needed
+# layer_indices = [x for x in range(32, 62, 1)] # Focus on later layers where emotion info is stronger, but can be adjusted as needed
+
+DATA_ROOT = PROJECT_ROOT / "results" / "gemma_v2"
+
+core_emotions = ["happy", "inspired", "loving", "proud", "calm", "desperate",
+                "angry", "afraid", "nervous", "guilty", "sad", "surprised"]
+
+additional_emotions = ["deferential", "conflict_avoidant", "socially_anxious",
+                        "ashamed", "approval_seeking", "people_pleasing",
+                        "validation_seeking", "submissive", "obsequious"]
+
+base_activations_path = DATA_ROOT / "activations" / "activations_27b.h5"
+additional_activations_path = DATA_ROOT / "activations" / "activations_additionalemotions_27b.h5"
+
+probes_dir = DATA_ROOT / "probes"
+probes_dir.mkdir(parents=True, exist_ok=True)
+layer_indices = [x for x in range(23, 45, 1)] 
 
 def get_args():
     parser = argparse.ArgumentParser(description="Linear Probes CLI")
@@ -26,8 +46,8 @@ def get_args():
     parser.add_argument("--additional_activations_path", type=str, default=str(additional_activations_path), help="Path to additional emotions activations .h5 file")
     parser.add_argument("--probes_dir", type=str, default=str(probes_dir), help="Directory to save probe results")
     parser.add_argument("--layer_indices", type=int, nargs='+', default=layer_indices, help="List of layer indices to analyze (e.g. --layer_indices 32 33 34 ...)")
-    parser.add_argument("--core_emotions_list", type=str, nargs='+', default=cfg.EMOTIONS, help="List of core emotions to analyze (default: base emotions)")
-    parser.add_argument("--additional_emotions_list", type=str, nargs='+', default=cfg.CONFLICT_AVOIDANCE_EMOTIONS, help="List of additional emotions to analyze (default: base emotions)")
+    parser.add_argument("--core_emotions_list", type=str, nargs='+', default=core_emotions, help="List of core emotions to analyze (default: base emotions)")
+    parser.add_argument("--additional_emotions_list", type=str, nargs='+', default=additional_emotions, help="List of additional emotions to analyze (default: base emotions)")
     args = parser.parse_args()
     return args
 

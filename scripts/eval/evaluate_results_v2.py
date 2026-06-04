@@ -1,4 +1,5 @@
 import sys, os
+import json
 import numpy as np
 import argparse
 from pathlib import Path
@@ -11,20 +12,19 @@ if str(SRC_DIR) not in sys.path:
 
 positive_emotions = ["happy", "inspired", "loving", "proud", "calm"]
 negative_emotions = ["afraid", "angry", "desperate", "nervous", "sad"]
-
-# Split taxonomy based on observed geometry
 compliance_emotions = ["approval_seeking", "validation_seeking", "people_pleasing"]
 distress_emotions = ["ashamed", "socially_anxious", "conflict_avoidant"]
+
 conflict_avoidance_all = compliance_emotions + distress_emotions
 
-LAYER = 32
+LAYER = 40
 
-data_path = PROJECT_ROOT / "results" / "gemma" / "probes"
+data_path = PROJECT_ROOT / "results" / "probes" / "v2"
 
-core_dir     = data_path / "all_layers" / f"layer_{LAYER}" / "pca_denoised"
+core_dir     = data_path / f"layer_{LAYER}" / "pca_denoised"
 conflict_dir = data_path / "all_layers_additional" / f"layer_{LAYER}" / "pca_denoised"
 
-result_path = PROJECT_ROOT / "results" / "gemma" / "cluster_data_v2"
+result_path = PROJECT_ROOT / "results" / "qwen_v2" / "cluster_data"
 
 def get_args():
     parser = argparse.ArgumentParser(description="Evaluate emotion vector geometry and save steering directions")
@@ -181,6 +181,9 @@ def main():
     np.save(layer_dir / "steering_direction_positive_valence.npy", valence_dir)
     print(f"\nsaved -> {layer_dir / 'steering_direction_positive_valence.npy'}")
 
+    np.save(layer_dir / "steering_direction_positive_centroid.npy", positive_mean)
+    print(f"saved -> {layer_dir / 'steering_direction_positive_centroid.npy'}")
+
     np.save(layer_dir / "steering_direction_pure_compliance.npy", pure_compliance)
     print(f"saved -> {layer_dir / 'steering_direction_pure_compliance.npy'}")
 
@@ -245,6 +248,36 @@ def main():
 
     np.save(layer_dir / "steering_direction_distress_proj_2.npy", distress_proj_2)
     print(f"saved -> {layer_dir / 'steering_direction_distress_proj_2.npy'}")
+
+    # ── Metadata JSON ─────────────────────────────────────────────
+    metadata = {
+        "layer": args.layer,
+        "positive_emotions": positive_emotions,
+        "negative_emotions": negative_emotions,
+        "approval_emotions": compliance_emotions,
+        "distress_emotions": distress_emotions,
+        "cosines": {
+            "approval_vs_positive":               cos(compliance_mean, positive_mean),
+            "approval_vs_negative":               cos(compliance_mean, negative_mean),
+            "approval_vs_distress":               cos(compliance_mean, distress_mean),
+            "distress_vs_positive":               cos(distress_mean, positive_mean),
+            "distress_vs_negative":               cos(distress_mean, negative_mean),
+            "pure_compliance_vs_positive":        cos(pure_compliance, positive_mean),
+            "pure_compliance_vs_distress":        cos(pure_compliance, distress_mean),
+            "pure_warmth_vs_compliance":          cos(pure_warmth, compliance_mean),
+            "pure_warmth_vs_positive":            cos(pure_warmth, positive_mean),
+            "valence_contrast_vs_positive":       cos(valence_dir, positive_mean),
+            "valence_contrast_vs_negative":       cos(valence_dir, negative_mean),
+            "approval_proj_vs_positive":          cos(approval_proj, positive_mean),
+            "approval_proj_vs_distress_orth":     cos(approval_proj, distress_orth),
+            "distress_proj_2_vs_positive":        cos(distress_proj_2, positive_mean),
+            "distress_proj_2_vs_compliance_orth": cos(distress_proj_2, compliance_orth),
+        }
+    }
+    metadata_path = layer_dir / "direction_metadata.json"
+    with open(metadata_path, "w") as f:
+        json.dump(metadata, f, indent=2)
+    print(f"saved -> {metadata_path}")
 
 
 if __name__ == "__main__":
