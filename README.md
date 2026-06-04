@@ -6,22 +6,6 @@ This project tests whether that tradeoff is a targeting problem. Conflict-avoida
 
 ---
 
-## Status
-
-| Stage | Task | Status |
-|---|---|---|
-| 1 | Dataset generation (21 emotions × ~190 stories) | Done |
-| 1 | Activation extraction, all 64 layers, Qwen2.5-32B | Done |
-| 1 | Linear probe training + geometry analysis | Done |
-| 1 | Steering sweep — positive valence + pure compliance (Qwen, single-turn + multi-turn) | Done |
-| 1 | Steering sweep — positive valence + pure compliance (Gemma3-27B) | Done |
-| 1 | Judge scoring across all conditions | Done |
-| 1 | Persona vector orthogonality check | Done |
-| 1 | 7-direction decomposed sweep (Qwen, layer 40) | In progress |
-| 2 | Reward hacking / agentic-striving extension | Planned |
-
----
-
 ## Key Findings
 
 ### Geometry
