@@ -74,7 +74,7 @@ Multi-turn baseline sycophancy is ~40% (consistent with the model being more lik
 
 Baseline sycophancy: 24%. The main result replicates — positive compliance α reduces sycophancy below baseline, appropriate responses hold at ~80%, harshness is 0% throughout. Stable window is narrower (α ∈ [−0.20, +0.20]) with model breakdown beyond those values. The dissociation holds despite Gemma's PC2 axis being inverted relative to Qwen.
 
-<img src="results/figures/gemma_singleturn_label41_positive_compliance.png" alt="Gemma single-turn steering results" width="700">
+<img src="results/figures/gemma_singleturn_label41.png" alt="Gemma single-turn steering results" width="700">
 
 ---
 
