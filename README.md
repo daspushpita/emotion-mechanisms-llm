@@ -250,18 +250,6 @@ results/
 **Stage 2 (planned).** Apply the same framework to the high-arousal negative-valence cluster — agentic striving under pressure ("desperate") vs. threat response (angry, afraid) — to test whether surgical steering can reduce reward hacking.
 
 
-## Citation
-
-```bibtex
-@misc{das2026geometryofyes,
-  title  = {The Geometry of Yes: Mapping Sycophancy Inside an LLM's Emotion Space},
-  author = {Pushpita Das},
-  year   = {2026},
-  howpublished = {LessWrong / Alignment Forum},
-  url    = {https://github.com/daspushpita/emotion-mechanisms-llm}
-}
-```
-
 ## References
 
 - Sofroniew, Nicholas, Isaac Kauvar, William Saunders, et al. 2026. *Emotion Concepts and Their Function in a Large Language Model.* Version 1. Preprint, arXiv. https://doi.org/10.48550/ARXIV.2604.07729
