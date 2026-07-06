@@ -30,18 +30,18 @@ See the full write-up: [The Geometry of Yes (LessWrong)](# Upcoming...).
 
 **PC1 recovers valence.** The valence–arousal structure reported for Claude Sonnet 4.5 replicates on both Qwen2.5-32B and Gemma3-27B. PC2 is inverted globally between the two models.
 
-**Conflict-avoidance is not a single cluster.** It splits into two geometrically opposed sub-groups (cosine similarity −0.98 between sub-cluster means):
+**Conflict-avoidance is not a single cluster.** It splits into two geometrically opposed sub-groups (compliance–distress cosine: −0.86 in Qwen, −0.85 in Gemma):
 
-| Cluster | Emotions | Valence position | Cosine with positive valence |
-|---|---|---|---|
-| **Compliance** | approval_seeking, validation_seeking, people_pleasing | positive / low-PC2 | +0.65 |
-| **Distress** | ashamed, socially_anxious, conflict_avoidant | negative-valence region | −0.78 |
+| Cluster | Emotions | Valence position | Cosine with positive valence (Qwen) | Cosine with positive valence (Gemma) |
+|---|---|---|---|---|
+| **Compliance** | approval_seeking, validation_seeking, people_pleasing | positive / low-PC2 | +0.74 | +0.72 |
+| **Distress** | ashamed, socially_anxious, conflict_avoidant | negative-valence region | −0.83 | −0.81 |
 
-Submissive and deferential fall between the two groups, consistent with their weak alignment with either sub-cluster.
+Submissive and deferential fall between the two groups, consistent with their weak alignment with either sub-cluster. (Positive-valence direction is the centroid of happy, loving, proud.)
 
 ### Steering
 
-All steering uses layer 40 (Qwen) / layer 41 (Gemma), judged by Claude Haiku 4.5 into four labels: **SYCOPHANTIC / APPROPRIATE / HARSH / PANIC_SPIRAL**.
+All steering uses layer 40 for both models, judged by Claude Haiku 4.5 into four labels: **SYCOPHANTIC / APPROPRIATE / HARSH / PANIC_SPIRAL**.
 
 **Headline finding:** positive-emotion centroid steering and the orthogonalised compliance direction move sycophancy in **opposite directions** under positive α. Steering toward positive valence makes the model more sycophantic; steering toward the compliance residual makes it less so, with no harshness introduced.
 
@@ -68,7 +68,7 @@ Best operating point: **α = +0.4, pure compliance, layer 40** — sycophancy dr
 
 **Multi-turn (layer 40).** Baseline sycophancy is ~43% under user pushback. The directional pattern holds: positive compliance α reduces sycophancy (to ~28% at α = +0.5), negative compliance α amplifies it. HARSH remains 0% across the full pure-compliance sweep.
 
-**Gemma3-27B (layer 41).** Baseline sycophancy ~17%. The main result replicates: positive compliance α reduces sycophancy below baseline (~15% at α = +0.2), appropriate responses hold at ~80%, and harshness is 0% throughout every condition. The stable window is narrower (α ∈ [−0.20, +0.20]); the model breaks down beyond it. The dissociation holds despite Gemma's PC2 axis being inverted relative to Qwen.
+**Gemma3-27B (layer 40).** Baseline sycophancy ~17%. The main result replicates: positive compliance α reduces sycophancy below baseline (~15% at α = +0.2), appropriate responses hold at ~80%, and harshness is 0% throughout every condition. The stable window is narrower (α ∈ [−0.20, +0.20]); the model breaks down beyond it. The dissociation holds despite Gemma's PC2 axis being inverted relative to Qwen.
 
 ### What drives sycophancy: warmth or compliance?
 
@@ -204,7 +204,7 @@ Notebooks for each stage are in `notebooks/steering/new_dataset/`. The sweep not
 | Model | Hidden size | Layers | Steering layer | Stable α window |
 |---|---|---|---|---|
 | `Qwen/Qwen2.5-32B-Instruct` | 5120 | 64 | 40 (~63% depth) | [−0.5, +0.5] |
-| `google/gemma-3-27b-it` | 5376 | 62 | 41 | [−0.20, +0.20] |
+| `google/gemma-3-27b-it` | 5376 | 62 | 40 | [−0.20, +0.20] |
 
 Steering is layer-localised: the effect is live at mid-stack layers and flat at late layers (the late-layer injection sits too close to the readout to propagate). Gemma's larger residual-stream norms (embedding scaling) require winsorisation when forming mean-difference directions.
 
