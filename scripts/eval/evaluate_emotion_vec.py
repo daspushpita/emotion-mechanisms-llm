@@ -21,7 +21,7 @@ LAYER = 40
 data_path    = PROJECT_ROOT / "results" / "qwen_v2" / "linear_probes_v2"
 core_dir     = data_path / f"layer_{LAYER}" / "pca_denoised"
 conflict_dir = data_path / "all_layers_additional" / f"layer_{LAYER}" / "pca_denoised"
-result_path  = PROJECT_ROOT / "results" / "qwen_v2" / "cluster_data"
+result_path  = PROJECT_ROOT / "results" / "qwen_v2" / "cluster_data_new"
 
 
 def get_args():

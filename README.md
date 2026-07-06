@@ -3,7 +3,7 @@
 **Mapping Sycophancy Inside an LLM's Emotion Space**
 
 <p align="center">
-  <img src="results/figures/emotion_vectors_layer40_qwen_gemma.png" width="800" alt="PCA of emotion directions in Qwen2.5-32B and Gemma3-27B, with PC1 recovering valence">
+  <img src="results/figures/emotion_pca_2d_qwen_gemma.png" width="800" alt="PCA of emotion directions in Qwen2.5-32B and Gemma3-27B, with PC1 recovering valence">
 </p>
 
 <p align="center"><em>Emotion directions for Qwen2.5-32B (left) and Gemma3-27B (right), embedded in the top two principal components of the per-emotion mean-difference vectors. PC1 recovers valence: warm emotions (happy, loving, proud) on one side, threat emotions (afraid, angry, desperate) on the other. Circles are core emotions; diamonds are conflict-avoidance emotions. The conflict-avoidance set does not form one cluster: it splits into a <strong>compliance</strong> sub-group (approval-seeking, validation-seeking, people-pleasing) on the positive-valence side and a <strong>distress</strong> sub-group (ashamed, socially anxious, conflict-avoidant) on the negative side. Steering toward broad positive valence raises sycophancy in both models. Steering toward the compliance direction with positive valence projected out <strong>lowers</strong> it, and keeps responses warm. HARSH stays at 0% across the pure-compliance sweep.</em></p>
@@ -48,8 +48,10 @@ All steering uses layer 40 (Qwen) / layer 41 (Gemma), judged by Claude Haiku 4.5
 The harshness trade-off **only partially transfers**: it appears in Qwen at strongly negative α for positive centroid steering, but Gemma shows no harshness at any setting.
 
 <p align="center">
-  <img src="results/figures/singleturn_label40.png" width="700" alt="Qwen single-turn steering: positive valence vs pure compliance">
+  <img src="results/figures/steering_approval.png" width="800" alt="Sycophancy and warmth vs steering strength for compliance, pure compliance, and pure core positive directions in Qwen2.5-32B and Gemma3-27B">
 </p>
+
+<p align="center"><em>Compliance vs pure-compliance vs pure-positive decomposition.</em></p>
 
 #### Qwen2.5-32B — single-turn (layer 40)
 
