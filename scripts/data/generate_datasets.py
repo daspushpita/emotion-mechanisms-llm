@@ -1,3 +1,4 @@
+# ! Generates datasets of emotional and neutral dialogues and stories, using the specified model.
 import json
 import os
 import random

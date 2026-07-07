@@ -6,7 +6,7 @@
   <img src="results/figures/emotion_pca_2d_qwen_gemma.png" width="800" alt="PCA of emotion directions in Qwen2.5-32B and Gemma3-27B, with PC1 recovering valence">
 </p>
 
-<p align="center"><em>Emotion directions for Qwen2.5-32B (left) and Gemma3-27B (right), embedded in the top two principal components of the per-emotion mean-difference vectors. PC1 recovers valence: warm emotions (happy, loving, proud) on one side, threat emotions (afraid, angry, desperate) on the other. Circles are core emotions; diamonds are conflict-avoidance emotions. The conflict-avoidance set does not form one cluster: it splits into a <strong>compliance</strong> sub-group (approval-seeking, validation-seeking, people-pleasing) on the positive-valence side and a <strong>distress</strong> sub-group (ashamed, socially anxious, conflict-avoidant) on the negative side. Steering toward broad positive valence raises sycophancy in both models. Steering toward the compliance direction with positive valence projected out <strong>lowers</strong> it, and keeps responses warm. HARSH stays at 0% across the pure-compliance sweep.</em></p>
+<p align="center"><em>Emotion directions for Qwen2.5-32B (left) and Gemma3-27B (right), embedded in the top two principal components of the per-emotion mean-difference vectors. PC1 recovers valence: warm emotions (happy, loving, proud) on one side, threat emotions (afraid, angry, desperate) on the other. Circles are core emotions; diamonds are conflict-avoidance emotions.</em></p>
 
 ## Overview
 
@@ -22,7 +22,7 @@ This repository provides tools for extracting emotion directions, decomposing th
 - **Decompose** the conflict-avoidance cluster into compliance and distress sub-directions via Gram-Schmidt orthogonalisation
 - **Steer** model behaviour along emotion directions during generation and judge the effect on sycophancy, warmth, and harshness
 
-See the full write-up: [The Geometry of Yes (LessWrong)](# Upcoming...).
+**See the full write-up: [The Geometry of Yes [LessWrong]](https://www.lesswrong.com/posts/v6uCyDNBKhrHevhzM/the-geometry-of-yes-mapping-sycophancy-inside-an-llm-s-1).**
 
 ## Key Findings
 
@@ -39,6 +39,12 @@ See the full write-up: [The Geometry of Yes (LessWrong)](# Upcoming...).
 
 Submissive and deferential fall between the two groups, consistent with their weak alignment with either sub-cluster. (Positive-valence direction is the centroid of happy, loving, proud.)
 
+<p align="center">
+  <img src="results/figures/emotion_similarity_layer_40.png" width="700" alt="Pairwise cosine similarity between all emotion vectors in Qwen2.5-32B at layer 40">
+</p>
+
+<p align="center"><em>Pairwise emotion vector cosine similarity, Qwen2.5-32B, layer 40.</em></p>
+
 ### Steering
 
 All steering uses layer 40 for both models, judged by Claude Haiku 4.5 into four labels: **SYCOPHANTIC / APPROPRIATE / HARSH / PANIC_SPIRAL**.
@@ -52,23 +58,6 @@ The harshness trade-off **only partially transfers**: it appears in Qwen at stro
 </p>
 
 <p align="center"><em>Compliance vs pure-compliance vs pure-positive decomposition.</em></p>
-
-#### Qwen2.5-32B — single-turn (layer 40)
-
-| Direction | α | Sycophantic | Appropriate | Panic spiral |
-|---|---|---|---|---|
-| Positive centroid | +0.5 | 100% | 0% | 0% |
-| Positive centroid | −0.3 | — | — | spiral begins |
-| **Baseline** | **0.0** | **~20%** | **~80%** | **0%** |
-| Pure compliance | +0.1 | 11% | 89% | 0% |
-| Pure compliance | +0.4 | **8%** | **92%** | **0%** |
-| Pure compliance | −0.5 | 64% | 10% | 26% |
-
-Best operating point: **α = +0.4, pure compliance, layer 40** — sycophancy drops from ~20% to 8% with no harshness and no panic.
-
-**Multi-turn (layer 40).** Baseline sycophancy is ~43% under user pushback. The directional pattern holds: positive compliance α reduces sycophancy (to ~28% at α = +0.5), negative compliance α amplifies it. HARSH remains 0% across the full pure-compliance sweep.
-
-**Gemma3-27B (layer 40).** Baseline sycophancy ~17%. The main result replicates: positive compliance α reduces sycophancy below baseline (~15% at α = +0.2), appropriate responses hold at ~80%, and harshness is 0% throughout every condition. The stable window is narrower (α ∈ [−0.20, +0.20]); the model breaks down beyond it. The dissociation holds despite Gemma's PC2 axis being inverted relative to Qwen.
 
 ### What drives sycophancy: warmth or compliance?
 
@@ -121,17 +110,17 @@ Each emotion direction is a **mean-difference vector** in the residual stream: t
 Four semantically defined groups are used for steering:
 
 ```
-core positive   = happy, loving, proud
-negative        = afraid, angry, desperate, nervous, sad
-compliance      = approval_seeking, validation_seeking, people_pleasing
-distress        = ashamed, socially_anxious, conflict_avoidant
+core positive = happy, loving, proud
+negative = afraid, angry, desperate, nervous, sad
+compliance = approval_seeking, validation_seeking, people_pleasing
+distress = ashamed, socially_anxious, conflict_avoidant
 ```
 
 The decomposition that produces the headline result is a Gram-Schmidt orthogonalisation between the compliance cluster and the positive-valence direction:
 
 ```
-pure_compliance = compliance      − proj(compliance      onto positive_valence)
-pure_warmth     = positive_valence − proj(positive_valence onto compliance)
+pure_compliance = compliance − proj(compliance onto positive_valence)
+pure_warmth = positive_valence − proj(positive_valence onto compliance)
 ```
 
 `pure_compliance` is the compliance signal with warmth removed; steering along it *lowers* sycophancy. `pure_warmth` is positive emotion with compliance removed; steering along it still *raises* sycophancy. This inverts the original hypothesis: warmth, not approval-seeking, is the relevant component. (Residuals within each cluster are non-negligible after subtracting the cluster mean, so the steering signal is not an artefact of a degenerate direction.)
@@ -197,7 +186,7 @@ python scripts/run_baseline.py
 python scripts/eval/run_sycophancy_eval.py --mode singleturn --run full ...
 ```
 
-Notebooks for each stage are in `notebooks/steering/new_dataset/`. The sweep notebooks are idempotent — safe to re-run, they skip already-generated files.
+Notebooks for each stage are in `notebooks/quickstart/`: `generate_datasets.ipynb` (story generation, Colab or local), `emotion_vectors.ipynb` (activation extraction, PCA denoising, geometry plots), and `steering_runs.ipynb` (steering sweep, judge scoring, plots). The sweep notebooks are idempotent — safe to re-run, they skip already-generated files.
 
 ## Models
 
@@ -219,31 +208,15 @@ src/emotion_mechanisms/
 └── data.py           # Dataset I/O
 
 scripts/eval/
-├── evaluate_results_v2.py      # 7-direction geometric decomposition + saving
+├── evaluate_emotion_vec.py      # 7-direction geometric decomposition + saving
 ├── run_sycophancy_eval.py      # Steering sweep runner
 └── judge_responses.py          # LLM-judge scoring
 
-notebooks/steering/new_dataset/
-├── baseline_single-turn.ipynb
-├── baseline_multi-turn_run.ipynb
-├── steering_sweep_layer40_directions.ipynb   # 7-direction decomposed sweep
-└── plots.ipynb
-
-results/
-├── qwen_v2/cluster_data/   # 7 steering direction vectors (.npy) + metadata per layer
-├── baseline/               # Residual norms
-├── pure_compliance/        # Pure-compliance sweep responses
-├── steering_sweep_layer40/ # 7-direction decomposed sweep outputs
-└── figures/                # Production figures
+notebooks/quickstart/
+├── generate_datasets.ipynb   # Story generation (Colab or local)
+├── emotion_vectors.ipynb     # Activation extraction, PCA denoising, geometry plots
+└── steering_runs.ipynb       # Steering sweep, judge scoring, plots
 ```
-
-## Open Questions
-
-**Mechanism.** The results show that warmth, not approval-seeking, drives sycophancy when steering along pure compliance. But why warmth itself increases sycophantic behaviour remains unresolved. A plausible hypothesis is that RLHF and instruction tuning bind warm, agreeable responses to deference in disagreement contexts. The steering experiments here do not isolate this.
-
-**Steering vs. natural behaviour.** The experiments show that adding these directions changes model responses, but do not prove that naturally sycophantic responses rely on the same directions. A stronger test would measure whether unsteered sycophantic responses already sit higher along the warmth or compliance directions before the response is generated.
-
-**Cross-model generality.** Qwen and Gemma both show the positive-emotion-to-sycophancy link, but differ in the harshness trade-off. More models are needed to separate what is common across instruction-tuned models from what is specific to a particular model or post-training procedure.
 
 ## Hypothesis
 
