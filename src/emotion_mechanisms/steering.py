@@ -25,6 +25,15 @@ class ActivationSteer:
     def _make_hook(self):
         def hook_fn(_module, _input, output):
             hidden_vector = output[0] if isinstance(output, tuple) else output
+
+            # Only steer newly generated tokens, not the prompt: during the
+            # prefill pass hidden_vector covers the whole prompt (seq_len > 1);
+            # during each cached decode step it's just the new token (seq_len == 1).
+            # Steering the prompt would corrupt the model's own reading of the
+            # user's message, confounding sycophancy measured on the response.
+            if hidden_vector.shape[1] > 1:
+                return output
+
             steering_direction = self.direction.to(hidden_vector.device, dtype=hidden_vector.dtype)
             hidden_vector = hidden_vector + self._alpha * self.residual_norm * steering_direction
             
